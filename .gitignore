@@ -1,0 +1,17 @@
+# 認証情報（絶対にコミットしない）
+.env
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+.vercel
+.serena/
