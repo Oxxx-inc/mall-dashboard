@@ -1575,21 +1575,152 @@ function copyResult(idx) {
   });
 }
 
+// ── API DATA FETCH ────────────────────────────────────
+const API_BASE = '/api/proxy';
+let apiLoaded = false;
+
+async function fetchApi(endpoint) {
+  const res = await fetch(`${API_BASE}?endpoint=${endpoint}`);
+  if (!res.ok) throw new Error(`${endpoint}: ${res.status}`);
+  return res.json();
+}
+
+// Amazon APIレスポンスをダッシュボード用データに変換
+function normalizeCampaigns(raw) {
+  // v3 API: { campaigns: [...], totalResults: N }
+  const list = Array.isArray(raw) ? raw
+             : (raw && Array.isArray(raw.campaigns)) ? raw.campaigns
+             : null;
+  if (!list) return null;
+  return list.map(c => ({
+    name:   c.name || c.campaignId || '不明',
+    status: (c.state === 'ENABLED' || c.state === 'enabled') ? '有効' : '停止',
+    type:   c.targetingType === 'AUTO' ? 'オート' : 'マニュアル',
+    spend:  Math.round(c.cost || 0),
+    sales:  Math.round(c.attributedSales30d || 0),
+    acos:   c.cost && c.attributedSales30d
+              ? Math.round(c.cost / c.attributedSales30d * 1000) / 10
+              : 0,
+    roas:   c.cost && c.attributedSales30d
+              ? Math.round(c.attributedSales30d / c.cost * 10) / 10
+              : 0,
+    budget: Math.round(c.budget?.budget || c.dailyBudget || 0),
+  }));
+}
+
+function normalizeKeywords(raw) {
+  // v3 API: { keywords: [...], totalResults: N }
+  const list = Array.isArray(raw) ? raw
+             : (raw && Array.isArray(raw.keywords)) ? raw.keywords
+             : null;
+  if (!list) return null;
+  return list.map(k => ({
+    kw:     k.keywordText || k.keyword || '不明',
+    match:  (k.matchType === 'EXACT' || k.matchType === 'exact') ? '完全一致'
+          : (k.matchType === 'PHRASE' || k.matchType === 'phrase') ? 'フレーズ'
+          : '広範',
+    bid:    Math.round(k.bid?.value || k.bid || 0),
+    imp:    k.impressions || 0,
+    clicks: k.clicks || 0,
+    ctr:    k.impressions ? Math.round(k.clicks / k.impressions * 10000) / 100 : 0,
+    spend:  Math.round(k.cost || 0),
+    acos:   k.cost && k.attributedSales30d
+              ? Math.round(k.cost / k.attributedSales30d * 1000) / 10
+              : 0,
+  }));
+}
+
+function showApiError(msg) {
+  const banner = document.getElementById('apiBanner');
+  banner.style.display = 'flex';
+  banner.style.background = 'linear-gradient(135deg, rgba(232,72,85,0.1), rgba(255,107,53,0.05))';
+  banner.style.borderColor = 'rgba(232,72,85,0.3)';
+  banner.querySelector('h3').textContent = 'API接続エラー';
+  banner.querySelector('h3').style.color = 'var(--bad)';
+  banner.querySelector('p').textContent = msg;
+  banner.querySelector('.steps').style.display = 'none';
+  banner.querySelector('.api-setup-btn').style.display = 'none';
+}
+
+async function loadRealData() {
+  if (apiLoaded) return;
+
+  // ヘルスチェック
+  try {
+    const health = await fetchApi('health');
+    if (health.status !== 'ok') throw new Error('Proxy未起動');
+  } catch(e) {
+    // Proxyが動いていない場合はデモデータのまま
+    console.warn('[API] Proxy未接続 — デモデータで表示:', e.message);
+    return;
+  }
+
+  // ローディング表示
+  document.getElementById('apiStatusText').textContent = '読み込み中...';
+
+  try {
+    // キャンペーン取得
+    const rawCampaigns = await fetchApi('campaigns');
+    const normalized = normalizeCampaigns(rawCampaigns);
+    if (normalized && normalized.length > 0) {
+      campaigns.length = 0;
+      normalized.forEach(c => campaigns.push(c));
+    }
+
+    // キーワード取得
+    try {
+      const rawKeywords = await fetchApi('keywords');
+      const normKw = normalizeKeywords(rawKeywords);
+      if (normKw && normKw.length > 0) {
+        keywords.length = 0;
+        normKw.forEach(k => keywords.push(k));
+      }
+    } catch(e) { console.warn('[API] キーワード取得失敗:', e.message); }
+
+    // 接続成功
+    document.getElementById('apiDot').classList.add('connected');
+    document.getElementById('apiStatusText').textContent = `接続済み (${campaigns.length}件)`;
+    document.getElementById('apiBanner').style.display = 'none';
+    apiLoaded = true;
+
+    // KPI再計算
+    const totalSpend = campaigns.reduce((s,c) => s + c.spend, 0);
+    const totalSales = campaigns.reduce((s,c) => s + c.sales, 0);
+    const avgAcos    = totalSpend && totalSales ? Math.round(totalSpend/totalSales*1000)/10 : 0;
+    const avgRoas    = totalSpend && totalSales ? Math.round(totalSales/totalSpend*10)/10 : 0;
+
+    document.querySelectorAll('.kpi-value')[0].textContent = `¥${totalSpend.toLocaleString()}`;
+    document.querySelectorAll('.kpi-value')[1].textContent = `¥${totalSales.toLocaleString()}`;
+    document.querySelectorAll('.kpi-value')[2].textContent = `${avgAcos}%`;
+    document.querySelectorAll('.kpi-value')[3].textContent = `${avgRoas}x`;
+
+    // テーブル再描画
+    renderCampaigns();
+    renderKeywords();
+
+  } catch(e) {
+    console.error('[API] データ取得失敗:', e.message);
+    showApiError(`データ取得に失敗しました: ${e.message}`);
+    document.getElementById('apiStatusText').textContent = 'エラー';
+  }
+}
+
 // ── INIT ──────────────────────────────────
 renderCampaigns();
 renderKeywords();
 renderTargeting();
 initCharts();
 
-// Check if saved
-try {
-  const saved = localStorage.getItem('amzAdsConfig');
-  if (saved) {
-    document.getElementById('apiDot').classList.add('connected');
-    document.getElementById('apiStatusText').textContent = '接続済み';
-    document.getElementById('apiBanner').style.display = 'none';
-  }
-} catch(e) {}
+// 起動時にAPIデータ取得を試みる
+loadRealData();
+
+// 更新ボタンにも紐付け
+const origRefresh = window.simulateRefresh;
+window.simulateRefresh = function() {
+  apiLoaded = false;
+  loadRealData();
+  origRefresh && origRefresh();
+};
 </script>
 </body>
 </html>
