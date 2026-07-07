@@ -61,18 +61,7 @@ async function getAccessToken() {
   if (!res.access_token) {
     throw new Error('Token取得失敗: ' + JSON.stringify(res));
   }
-  // 改行・空白を除去して返す
-  return res.access_token.trim().replace(/\s/g, '');
-}
-
-async function adsGet(path) {
-  const token = await getAccessToken();
-  return httpsGet(ADS_HOST, path, {
-    'Amazon-Advertising-API-ClientId': AMZ_CLIENT_ID,
-    'Amazon-Advertising-API-Scope':    AMZ_PROFILE_ID,
-    'Authorization': `Bearer ${token}`,
-    'Content-Type':  'application/json',
-  });
+  return res.access_token.trim().replace(/[\r\n\s]/g, '');
 }
 
 module.exports = async function handler(req, res) {
@@ -82,6 +71,25 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const { endpoint } = req.query;
+
+  // ── デバッグ用 ──────────────────────────────────────
+  if (endpoint === 'debug') {
+    try {
+      const token = await getAccessToken();
+      return res.status(200).json({
+        status: 'ok',
+        token_length: token.length,
+        token_prefix: token.slice(0, 10) + '...',
+        token_has_spaces: /\s/.test(token),
+        client_id_ok: AMZ_CLIENT_ID.startsWith('amzn1'),
+        profile_id: AMZ_PROFILE_ID,
+        refresh_token_length: AMZ_REFRESH_TOKEN.length,
+        refresh_token_prefix: AMZ_REFRESH_TOKEN.slice(0, 10) + '...',
+      });
+    } catch(e) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
 
   const routes = {
     campaigns: '/sp/campaigns?stateFilter=ENABLED,PAUSED&count=100',
@@ -103,7 +111,13 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const result = await adsGet(routes[endpoint]);
+    const token = await getAccessToken();
+    const result = await httpsGet(ADS_HOST, routes[endpoint], {
+      'Amazon-Advertising-API-ClientId': AMZ_CLIENT_ID,
+      'Amazon-Advertising-API-Scope':    AMZ_PROFILE_ID,
+      'Authorization': `Bearer ${token}`,
+      'Content-Type':  'application/json',
+    });
     return res.status(result.status).json(result.data);
   } catch (e) {
     console.error('[proxy error]', e.message);
