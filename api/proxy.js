@@ -43,7 +43,7 @@ function httpsGet(hostname, path, headers) {
       res.on('data', c => raw += c);
       res.on('end', () => {
         try { resolve({ status: res.statusCode, data: JSON.parse(raw) }); }
-        catch (e) { reject(new Error('Response parse error: ' + raw.slice(0, 200))); }
+        catch (e) { reject(new Error('Response parse error: ' + raw.slice(0, 300))); }
       });
     });
     req.on('error', reject);
@@ -64,6 +64,17 @@ async function getAccessToken() {
   return res.access_token.trim().replace(/[\r\n\s]/g, '');
 }
 
+async function adsGet(path) {
+  const token = await getAccessToken();
+  return httpsGet(ADS_HOST, path, {
+    'Amazon-Advertising-API-ClientId': AMZ_CLIENT_ID,
+    'Amazon-Advertising-API-Scope':    AMZ_PROFILE_ID,
+    'Authorization': `Bearer ${token}`,
+    'Content-Type':  'application/json',
+    'Accept':        'application/json',
+  });
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -72,7 +83,12 @@ module.exports = async function handler(req, res) {
 
   const { endpoint } = req.query;
 
-  // ── デバッグ用 ──────────────────────────────────────
+  // ヘルスチェック
+  if (endpoint === 'health') {
+    return res.status(200).json({ status: 'ok', time: new Date().toISOString() });
+  }
+
+  // デバッグ
   if (endpoint === 'debug') {
     try {
       const token = await getAccessToken();
@@ -84,24 +100,19 @@ module.exports = async function handler(req, res) {
         client_id_ok: AMZ_CLIENT_ID.startsWith('amzn1'),
         profile_id: AMZ_PROFILE_ID,
         refresh_token_length: AMZ_REFRESH_TOKEN.length,
-        refresh_token_prefix: AMZ_REFRESH_TOKEN.slice(0, 10) + '...',
       });
     } catch(e) {
       return res.status(500).json({ error: e.message });
     }
   }
 
+  // v2 API（実績のある安定版）
   const routes = {
-    campaigns: '/sp/campaigns?stateFilter=ENABLED,PAUSED&count=100',
-    adgroups:  '/sp/adGroups?stateFilter=ENABLED,PAUSED&count=100',
-    keywords:  '/sp/keywords?stateFilter=ENABLED,PAUSED&count=200',
-    targets:   '/sp/targets?stateFilter=ENABLED,PAUSED&count=200',
-    health:    null,
+    campaigns: '/v2/sp/campaigns?stateFilter=enabled,paused&count=100',
+    adgroups:  '/v2/sp/adGroups?stateFilter=enabled,paused&count=100',
+    keywords:  '/v2/sp/keywords?stateFilter=enabled,paused&count=200',
+    targets:   '/v2/sp/targets?stateFilter=enabled,paused&count=200',
   };
-
-  if (endpoint === 'health') {
-    return res.status(200).json({ status: 'ok', time: new Date().toISOString() });
-  }
 
   if (!routes[endpoint]) {
     return res.status(400).json({
@@ -111,13 +122,7 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const token = await getAccessToken();
-    const result = await httpsGet(ADS_HOST, routes[endpoint], {
-      'Amazon-Advertising-API-ClientId': AMZ_CLIENT_ID,
-      'Amazon-Advertising-API-Scope':    AMZ_PROFILE_ID,
-      'Authorization': `Bearer ${token}`,
-      'Content-Type':  'application/json',
-    });
+    const result = await adsGet(routes[endpoint]);
     return res.status(result.status).json(result.data);
   } catch (e) {
     console.error('[proxy error]', e.message);
