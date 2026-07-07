@@ -1,0 +1,1718 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Amazon広告 管理ダッシュボード</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c10;
+    --surface: #111318;
+    --surface2: #181c23;
+    --border: #1e2330;
+    --accent: #ff6b35;
+    --accent2: #00d4aa;
+    --accent3: #6c8ef5;
+    --warn: #f5a623;
+    --danger: #e84855;
+    --text: #e8eaf0;
+    --text2: #8892a4;
+    --text3: #4a5568;
+    --good: #00d4aa;
+    --bad: #e84855;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans JP', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 220px;
+    min-height: 100vh;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    z-index: 100;
+  }
+  .logo {
+    padding: 24px 20px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo-mark {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 18px;
+    letter-spacing: -0.5px;
+    color: var(--accent);
+  }
+  .logo-sub {
+    font-size: 10px;
+    color: var(--text3);
+    margin-top: 2px;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 1px;
+  }
+  .nav { padding: 16px 0; flex: 1; }
+  .nav-section {
+    font-size: 9px;
+    font-family: 'DM Mono', monospace;
+    color: var(--text3);
+    letter-spacing: 2px;
+    padding: 12px 20px 6px;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 20px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text2);
+    border-left: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active {
+    background: rgba(255,107,53,0.08);
+    color: var(--accent);
+    border-left-color: var(--accent);
+  }
+  .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+  .sidebar-footer {
+    padding: 16px 20px;
+    border-top: 1px solid var(--border);
+  }
+  .api-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text3);
+    font-family: 'DM Mono', monospace;
+  }
+  .api-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--warn);
+    animation: pulse 2s infinite;
+  }
+  .api-dot.connected { background: var(--good); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* MAIN */
+  .main {
+    margin-left: 220px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+  .topbar {
+    height: 56px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 28px;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+  .topbar-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    flex: 1;
+  }
+  .date-filter {
+    display: flex;
+    gap: 4px;
+  }
+  .date-btn {
+    padding: 5px 12px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text2);
+    transition: all 0.15s;
+  }
+  .date-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .date-btn:hover:not(.active) { border-color: var(--text2); color: var(--text); }
+  .refresh-btn {
+    padding: 6px 14px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    border: 1px solid var(--accent);
+    background: rgba(255,107,53,0.1);
+    color: var(--accent);
+    font-family: 'DM Mono', monospace;
+    transition: all 0.15s;
+  }
+  .refresh-btn:hover { background: var(--accent); color: #fff; }
+
+  .content { padding: 24px 28px; flex: 1; }
+
+  /* API SETUP BANNER */
+  .api-banner {
+    background: linear-gradient(135deg, rgba(245,166,35,0.1), rgba(255,107,53,0.05));
+    border: 1px solid rgba(245,166,35,0.3);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  .api-banner-icon { font-size: 24px; margin-top: 2px; }
+  .api-banner h3 { font-size: 14px; font-weight: 700; color: var(--warn); margin-bottom: 6px; }
+  .api-banner p { font-size: 12px; color: var(--text2); line-height: 1.6; }
+  .api-banner .steps {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .step {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    font-size: 12px;
+    color: var(--text2);
+  }
+  .step-num {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--warn);
+    color: #fff;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-family: 'DM Mono', monospace;
+    font-weight: 500;
+  }
+  .api-setup-btn {
+    margin-top: 14px;
+    padding: 8px 18px;
+    border-radius: 5px;
+    background: var(--warn);
+    color: #000;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.5px;
+  }
+
+  /* API MODAL */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    width: 560px;
+    max-width: 95vw;
+    padding: 28px;
+  }
+  .modal h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .modal-sub { font-size: 12px; color: var(--text2); margin-bottom: 20px; }
+  .form-group { margin-bottom: 16px; }
+  .form-label { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--text2); margin-bottom: 6px; display: block; letter-spacing: 0.5px; }
+  .form-input {
+    width: 100%;
+    padding: 9px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    outline: none;
+    transition: border 0.15s;
+  }
+  .form-input:focus { border-color: var(--accent); }
+  .form-hint { font-size: 11px; color: var(--text3); margin-top: 4px; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+  .btn-cancel {
+    padding: 8px 18px;
+    border-radius: 5px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text2);
+    font-size: 12px;
+    cursor: pointer;
+    font-family: 'DM Mono', monospace;
+  }
+  .btn-connect {
+    padding: 8px 20px;
+    border-radius: 5px;
+    background: var(--accent);
+    border: none;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* KPI CARDS */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+  .kpi-card.spend::before { background: var(--accent); }
+  .kpi-card.sales::before { background: var(--accent2); }
+  .kpi-card.acos::before { background: var(--warn); }
+  .kpi-card.roas::before { background: var(--accent3); }
+  .kpi-label {
+    font-size: 10px;
+    font-family: 'DM Mono', monospace;
+    color: var(--text3);
+    letter-spacing: 1.5px;
+    margin-bottom: 8px;
+  }
+  .kpi-value {
+    font-family: 'Syne', sans-serif;
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    margin-bottom: 4px;
+  }
+  .kpi-delta {
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .delta-up { color: var(--good); }
+  .delta-down { color: var(--bad); }
+
+  /* CHART ROW */
+  .chart-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+  }
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .card-badge {
+    font-size: 10px;
+    font-family: 'DM Mono', monospace;
+    padding: 3px 8px;
+    border-radius: 3px;
+    background: var(--surface2);
+    color: var(--text3);
+  }
+  canvas { width: 100% !important; }
+
+  /* TABLE */
+  .table-card { margin-bottom: 24px; }
+  .table-controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+    align-items: center;
+  }
+  .search-input {
+    flex: 1;
+    padding: 8px 14px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+    font-family: 'Noto Sans JP', sans-serif;
+  }
+  .search-input::placeholder { color: var(--text3); }
+  .search-input:focus { border-color: var(--accent); }
+  .filter-select {
+    padding: 8px 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text);
+    font-size: 12px;
+    outline: none;
+    cursor: pointer;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  th {
+    text-align: left;
+    padding: 9px 14px;
+    font-size: 10px;
+    font-family: 'DM Mono', monospace;
+    color: var(--text3);
+    letter-spacing: 1px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  th:hover { color: var(--text2); }
+  td {
+    padding: 11px 14px;
+    border-bottom: 1px solid rgba(30,35,48,0.6);
+    vertical-align: middle;
+  }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  tr:last-child td { border-bottom: none; }
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-family: 'DM Mono', monospace;
+  }
+  .status-active { background: rgba(0,212,170,0.1); color: var(--good); }
+  .status-paused { background: rgba(74,85,104,0.2); color: var(--text3); }
+  .status-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  .acos-good { color: var(--good); }
+  .acos-warn { color: var(--warn); }
+  .acos-bad { color: var(--bad); }
+  .bid-cell {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+  }
+  .bid-edit {
+    background: none;
+    border: 1px solid transparent;
+    color: inherit;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    width: 70px;
+    padding: 3px 6px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .bid-edit:hover { border-color: var(--accent); background: var(--surface2); }
+  .bid-edit:focus { border-color: var(--accent); background: var(--surface2); outline: none; }
+  .action-btn {
+    padding: 4px 10px;
+    border-radius: 3px;
+    font-size: 11px;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text2);
+    font-family: 'DM Mono', monospace;
+    transition: all 0.15s;
+    margin-right: 4px;
+  }
+  .action-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .action-btn.pause:hover { border-color: var(--warn); color: var(--warn); }
+
+  /* TABS */
+  .tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+  }
+  .tab {
+    padding: 10px 20px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text2);
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    font-family: 'Noto Sans JP', sans-serif;
+  }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab:hover:not(.active) { color: var(--text); }
+
+  /* SCORE BARS */
+  .score-bar-wrap { display: flex; align-items: center; gap: 10px; }
+  .score-bar-bg {
+    flex: 1;
+    height: 4px;
+    background: var(--surface2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .score-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.5s ease;
+  }
+  .score-val { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text2); width: 36px; text-align: right; }
+
+  /* ALERT */
+  .alerts-section { margin-bottom: 20px; }
+  .alert-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+  .alert-warn { background: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.2); }
+  .alert-danger { background: rgba(232,72,85,0.08); border: 1px solid rgba(232,72,85,0.2); }
+  .alert-good { background: rgba(0,212,170,0.08); border: 1px solid rgba(0,212,170,0.2); }
+  .alert-icon { font-size: 16px; }
+
+  /* AI ANALYSIS */
+  .ai-page-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .ai-page-title {
+    font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 800;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .ai-badge {
+    font-size: 10px; font-family: 'DM Mono', monospace; padding: 3px 8px;
+    border-radius: 3px; background: rgba(108,142,245,0.15); color: var(--accent3);
+    border: 1px solid rgba(108,142,245,0.3);
+  }
+  .analyze-all-btn {
+    padding: 10px 22px; border-radius: 6px; background: linear-gradient(135deg, var(--accent3), #4a6fe8);
+    border: none; color: #fff; font-size: 13px; font-weight: 700; cursor: pointer;
+    font-family: 'Syne', sans-serif; letter-spacing: 0.3px;
+    transition: all 0.2s; display: flex; align-items: center; gap: 8px;
+  }
+  .analyze-all-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(108,142,245,0.4); }
+  .analyze-all-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .camp-analysis-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;
+  }
+  .camp-analysis-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .camp-analysis-card:hover { border-color: rgba(108,142,245,0.3); }
+  .camp-analysis-card.analyzing { border-color: rgba(108,142,245,0.5); }
+  .camp-analysis-card.done { border-color: rgba(0,212,170,0.3); }
+  .camp-analysis-card.error-state { border-color: rgba(232,72,85,0.3); }
+
+  .camp-card-header {
+    padding: 16px 18px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .camp-type-badge {
+    font-size: 10px; font-family: 'DM Mono', monospace; padding: 2px 7px;
+    border-radius: 3px; background: var(--surface2); color: var(--text2);
+    flex-shrink: 0;
+  }
+  .camp-card-name {
+    font-weight: 700; font-size: 13px; flex: 1;
+  }
+  .camp-card-status-badge {
+    font-size: 10px; font-family: 'DM Mono', monospace; padding: 2px 8px;
+    border-radius: 10px; flex-shrink: 0;
+  }
+  .camp-card-status-badge.active { background: rgba(0,212,170,0.1); color: var(--good); }
+  .camp-card-status-badge.paused { background: rgba(74,85,104,0.15); color: var(--text3); }
+
+  .camp-metrics-row {
+    display: grid; grid-template-columns: repeat(4,1fr);
+    padding: 14px 18px; gap: 8px; border-bottom: 1px solid var(--border);
+  }
+  .camp-metric { text-align: center; }
+  .camp-metric-label {
+    font-size: 9px; font-family: 'DM Mono', monospace; color: var(--text3);
+    letter-spacing: 1px; margin-bottom: 4px;
+  }
+  .camp-metric-value {
+    font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700;
+  }
+
+  .ai-result-area { padding: 16px 18px; min-height: 100px; }
+  .ai-placeholder {
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 10px; padding: 20px 0; color: var(--text3);
+    font-size: 12px; text-align: center;
+  }
+  .ai-placeholder-icon { font-size: 28px; opacity: 0.4; }
+
+  .ai-loading {
+    display: flex; align-items: center; gap: 10px; color: var(--accent3);
+    font-size: 12px; font-family: 'DM Mono', monospace; padding: 10px 0;
+  }
+  .ai-spinner {
+    width: 16px; height: 16px; border: 2px solid rgba(108,142,245,0.2);
+    border-top-color: var(--accent3); border-radius: 50%;
+    animation: spin 0.7s linear infinite; flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .ai-result { font-size: 12.5px; line-height: 1.75; color: var(--text); }
+  .ai-result .priority-high { color: var(--bad); font-weight: 700; }
+  .ai-result .priority-med { color: var(--warn); font-weight: 700; }
+  .ai-result .priority-low { color: var(--good); font-weight: 700; }
+
+  .ai-actions-row {
+    display: flex; gap: 8px; padding: 12px 18px;
+    border-top: 1px solid var(--border); background: rgba(0,0,0,0.15);
+  }
+  .analyze-btn {
+    padding: 7px 16px; border-radius: 5px;
+    background: rgba(108,142,245,0.1); border: 1px solid rgba(108,142,245,0.3);
+    color: var(--accent3); font-size: 11px; cursor: pointer;
+    font-family: 'DM Mono', monospace; transition: all 0.15s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .analyze-btn:hover { background: rgba(108,142,245,0.2); border-color: var(--accent3); }
+  .analyze-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .copy-btn {
+    padding: 7px 16px; border-radius: 5px;
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text2); font-size: 11px; cursor: pointer;
+    font-family: 'DM Mono', monospace; transition: all 0.15s;
+  }
+  .copy-btn:hover { border-color: var(--text2); color: var(--text); }
+
+  .ai-insight-chips {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px;
+  }
+  .chip {
+    font-size: 10px; font-family: 'DM Mono', monospace; padding: 3px 9px;
+    border-radius: 10px; border: 1px solid; white-space: nowrap;
+  }
+  .chip-red { background: rgba(232,72,85,0.08); color: var(--bad); border-color: rgba(232,72,85,0.25); }
+  .chip-yellow { background: rgba(245,166,35,0.08); color: var(--warn); border-color: rgba(245,166,35,0.25); }
+  .chip-green { background: rgba(0,212,170,0.08); color: var(--good); border-color: rgba(0,212,170,0.25); }
+  .chip-blue { background: rgba(108,142,245,0.08); color: var(--accent3); border-color: rgba(108,142,245,0.25); }
+
+  .section-label {
+    font-size: 10px; font-family: 'DM Mono', monospace; color: var(--text3);
+    letter-spacing: 1.5px; margin-bottom: 6px; margin-top: 12px;
+  }
+  .section-label:first-child { margin-top: 0; }
+
+  /* RESPONSIVE */
+  @media (max-width: 1100px) {
+    .kpi-grid { grid-template-columns: repeat(2,1fr); }
+    .chart-row { grid-template-columns: 1fr; }
+    .camp-analysis-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-mark">ADS CTRL</div>
+    <div class="logo-sub">AMAZON ADVERTISING</div>
+  </div>
+  <nav class="nav">
+    <div class="nav-section">メイン</div>
+    <div class="nav-item active" onclick="showTab('dashboard')">
+      <span class="nav-icon">◈</span> ダッシュボード
+    </div>
+    <div class="nav-item" onclick="showTab('campaigns')">
+      <span class="nav-icon">⊞</span> キャンペーン
+    </div>
+    <div class="nav-item" onclick="showTab('keywords')">
+      <span class="nav-icon">⌗</span> キーワード
+    </div>
+    <div class="nav-item" onclick="showTab('targeting')">
+      <span class="nav-icon">◎</span> ターゲティング
+    </div>
+    <div class="nav-section">分析</div>
+    <div class="nav-item" onclick="showTab('ai')">
+      <span class="nav-icon">✦</span> AI改善提案 <span style="margin-left:auto;background:linear-gradient(135deg,var(--accent3),#4a6fe8);color:#fff;font-size:9px;padding:1px 6px;border-radius:10px;font-family:'DM Mono',monospace">NEW</span>
+    </div>
+    <div class="nav-item" onclick="showTab('kpi')">
+      <span class="nav-icon">▦</span> KPI分析
+    </div>
+    <div class="nav-item" onclick="showTab('alerts')">
+      <span class="nav-icon">⚠</span> アラート <span style="margin-left:auto;background:var(--bad);color:#fff;font-size:9px;padding:1px 6px;border-radius:10px;font-family:'DM Mono',monospace">3</span>
+    </div>
+    <div class="nav-section">設定</div>
+    <div class="nav-item" onclick="openApiModal()">
+      <span class="nav-icon">⚙</span> API設定
+    </div>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="api-status">
+      <div class="api-dot" id="apiDot"></div>
+      <span id="apiStatusText">未接続（デモ）</span>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+  <div class="topbar">
+    <div class="topbar-title" id="pageTitle">ダッシュボード</div>
+    <div class="date-filter">
+      <button class="date-btn" onclick="setDate(this,'7d')">7日</button>
+      <button class="date-btn active" onclick="setDate(this,'30d')">30日</button>
+      <button class="date-btn" onclick="setDate(this,'90d')">90日</button>
+    </div>
+    <button class="refresh-btn" onclick="simulateRefresh()">↻ 更新</button>
+  </div>
+
+  <div class="content">
+
+    <!-- API BANNER -->
+    <div class="api-banner" id="apiBanner">
+      <div class="api-banner-icon">🔗</div>
+      <div style="flex:1">
+        <h3>APIキーを設定してリアルデータを取得</h3>
+        <p>現在はデモデータを表示しています。Amazon広告APIに接続するには以下の手順でAPIキーを取得してください。</p>
+        <div class="steps">
+          <div class="step"><div class="step-num">1</div><span>Amazon Advertising Consoleにログイン → アプリ登録</span></div>
+          <div class="step"><div class="step-num">2</div><span>Client ID / Client Secret を取得</span></div>
+          <div class="step"><div class="step-num">3</div><span>OAuth認証でRefresh Tokenを発行</span></div>
+          <div class="step"><div class="step-num">4</div><span>Profile ID（広告アカウントID）を確認</span></div>
+        </div>
+        <button class="api-setup-btn" onclick="openApiModal()">API設定を開く →</button>
+      </div>
+    </div>
+
+    <!-- TABS (page switcher via JS) -->
+    <div id="page-dashboard">
+      <!-- KPI -->
+      <div class="kpi-grid">
+        <div class="kpi-card spend">
+          <div class="kpi-label">SPEND / 広告費</div>
+          <div class="kpi-value" style="color:var(--accent)">¥284,560</div>
+          <div class="kpi-delta delta-up">↑ +12.4% 前月比</div>
+        </div>
+        <div class="kpi-card sales">
+          <div class="kpi-label">AD SALES / 広告売上</div>
+          <div class="kpi-value" style="color:var(--accent2)">¥1,423,200</div>
+          <div class="kpi-delta delta-up">↑ +18.7% 前月比</div>
+        </div>
+        <div class="kpi-card acos">
+          <div class="kpi-label">ACOS</div>
+          <div class="kpi-value" style="color:var(--warn)">20.0%</div>
+          <div class="kpi-delta delta-up">↓ -1.8pt 改善</div>
+        </div>
+        <div class="kpi-card roas">
+          <div class="kpi-label">ROAS</div>
+          <div class="kpi-value" style="color:var(--accent3)">5.00x</div>
+          <div class="kpi-delta delta-up">↑ +0.3x 前月比</div>
+        </div>
+      </div>
+
+      <!-- CHART ROW -->
+      <div class="chart-row">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">広告費 / 売上トレンド</div>
+            <div class="card-badge">過去30日</div>
+          </div>
+          <canvas id="trendChart" height="180"></canvas>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">キャンペーン別 ACOS</div>
+            <div class="card-badge">TOP 5</div>
+          </div>
+          <div style="margin-top:8px">
+            <div id="acosBreakdown"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ALERTS -->
+      <div class="alerts-section">
+        <div class="card-header" style="margin-bottom:12px"><div class="card-title">⚡ 要注意アラート</div></div>
+        <div class="alert-item alert-danger">
+          <span class="alert-icon">🔴</span>
+          <span><strong>「スマートフォンケース SP」</strong> ACOS 42% — 目標値(30%)を大幅超過。入札額の引き下げを推奨。</span>
+        </div>
+        <div class="alert-item alert-warn">
+          <span class="alert-icon">🟡</span>
+          <span><strong>「ワイヤレスイヤホン KW」</strong> 予算上限に到達。本日の配信が停止中。予算引き上げを検討してください。</span>
+        </div>
+        <div class="alert-item alert-good">
+          <span class="alert-icon">🟢</span>
+          <span><strong>「充電器 BR」</strong> ROAS 8.2x — 高パフォーマンス。入札額を増やして露出拡大のチャンスです。</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- CAMPAIGNS PAGE -->
+    <div id="page-campaigns" style="display:none">
+      <div class="card table-card">
+        <div class="card-header">
+          <div class="card-title">キャンペーン一覧</div>
+          <div class="card-badge" id="campCount">6 campaigns</div>
+        </div>
+        <div class="table-controls">
+          <input class="search-input" placeholder="キャンペーン名で検索..." oninput="filterTable('campTable',this.value)">
+          <select class="filter-select" onchange="filterStatus(this.value)">
+            <option value="">すべて</option>
+            <option value="有効">有効のみ</option>
+            <option value="停止">停止のみ</option>
+          </select>
+        </div>
+        <table id="campTable">
+          <thead>
+            <tr>
+              <th onclick="sortTable('campTable',0)">キャンペーン名 ↕</th>
+              <th onclick="sortTable('campTable',1)">ステータス</th>
+              <th onclick="sortTable('campTable',2)">タイプ</th>
+              <th onclick="sortTable('campTable',3)">広告費 ↕</th>
+              <th onclick="sortTable('campTable',4)">売上 ↕</th>
+              <th onclick="sortTable('campTable',5)">ACOS ↕</th>
+              <th onclick="sortTable('campTable',6)">ROAS ↕</th>
+              <th onclick="sortTable('campTable',7)">予算/日</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="campBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- KEYWORDS PAGE -->
+    <div id="page-keywords" style="display:none">
+      <div class="card table-card">
+        <div class="card-header">
+          <div class="card-title">キーワード管理・入札額</div>
+          <div class="card-badge">入力欄クリックで編集可</div>
+        </div>
+        <div class="table-controls">
+          <input class="search-input" placeholder="キーワードで検索..." oninput="filterTable('kwTable',this.value)">
+          <select class="filter-select">
+            <option>すべてのマッチタイプ</option>
+            <option>完全一致</option>
+            <option>フレーズ</option>
+            <option>広範</option>
+          </select>
+        </div>
+        <table id="kwTable">
+          <thead>
+            <tr>
+              <th>キーワード</th>
+              <th>マッチタイプ</th>
+              <th>入札額 (編集可)</th>
+              <th>imp</th>
+              <th>クリック</th>
+              <th>CTR</th>
+              <th>広告費</th>
+              <th>ACOS</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="kwBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TARGETING PAGE -->
+    <div id="page-targeting" style="display:none">
+      <div class="card table-card">
+        <div class="card-header">
+          <div class="card-title">ターゲティング設定</div>
+          <div class="card-badge">商品・オーディエンス</div>
+        </div>
+        <table id="tgtTable">
+          <thead>
+            <tr>
+              <th>ターゲット</th>
+              <th>タイプ</th>
+              <th>キャンペーン</th>
+              <th>入札額</th>
+              <th>imp</th>
+              <th>クリック</th>
+              <th>広告費</th>
+              <th>ACOS</th>
+              <th>ステータス</th>
+            </tr>
+          </thead>
+          <tbody id="tgtBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- KPI PAGE -->
+    <div id="page-kpi" style="display:none">
+      <div class="chart-row" style="grid-template-columns:1fr 1fr">
+        <div class="card">
+          <div class="card-header"><div class="card-title">ACOS推移</div></div>
+          <canvas id="acosChart" height="200"></canvas>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">ROAS推移</div></div>
+          <canvas id="roasChart" height="200"></canvas>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header"><div class="card-title">キャンペーン別 パフォーマンススコア</div><div class="card-badge">総合評価</div></div>
+        <div id="perfScores" style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px"></div>
+      </div>
+    </div>
+
+    <!-- AI ANALYSIS PAGE -->
+    <div id="page-ai" style="display:none">
+      <div class="ai-page-header">
+        <div class="ai-page-title">
+          ✦ AI改善提案
+          <span class="ai-badge">Claude powered</span>
+        </div>
+        <button class="analyze-all-btn" id="analyzeAllBtn" onclick="analyzeAll()">
+          <span id="analyzeAllIcon">✦</span> 全キャンペーンを一括分析
+        </button>
+      </div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px;font-family:'DM Mono',monospace">
+        各キャンペーンの数値をAIが分析し、Amazon管理画面での具体的な改善アクションを提案します
+      </div>
+      <div class="camp-analysis-grid" id="campAnalysisGrid"></div>
+    </div>
+
+    <!-- ALERTS PAGE -->
+    <div id="page-alerts" style="display:none">
+      <div class="card">
+        <div class="card-header"><div class="card-title">アラート一覧</div></div>
+        <div style="margin-top:8px">
+          <div class="alert-item alert-danger"><span class="alert-icon">🔴</span><div><strong>ACOS超過</strong><br><span style="color:var(--text2);font-size:11px">「スマートフォンケース SP」 現在ACOS 42% / 目標30% — 入札¥180→¥120への引き下げを推奨</span></div></div>
+          <div class="alert-item alert-danger"><span class="alert-icon">🔴</span><div><strong>予算上限</strong><br><span style="color:var(--text2);font-size:11px">「ワイヤレスイヤホン KW」 日予算¥5,000に到達 14:32に配信停止</span></div></div>
+          <div class="alert-item alert-warn"><span class="alert-icon">🟡</span><div><strong>CTR低下</strong><br><span style="color:var(--text2);font-size:11px">「Bluetooth スピーカー SP」 CTR 0.28% (業界平均0.5%以下) — クリエイティブ見直しを検討</span></div></div>
+          <div class="alert-item alert-warn"><span class="alert-icon">🟡</span><div><strong>コンバージョン減少</strong><br><span style="color:var(--text2);font-size:11px">「充電ケーブル KW」 先週比CVR -22% — 商品ページの確認推奨</span></div></div>
+          <div class="alert-item alert-good"><span class="alert-icon">🟢</span><div><strong>高パフォーマンス</strong><br><span style="color:var(--text2);font-size:11px">「充電器 BR」 ROAS 8.2x 達成 — 入札額増加で露出拡大チャンス</span></div></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</main>
+
+<!-- API MODAL -->
+<div class="modal-overlay" id="apiModal">
+  <div class="modal">
+    <h2>🔗 Amazon広告 API設定</h2>
+    <p class="modal-sub">セラーセントラル / Advertising Consoleで発行したAPIキーを入力してください</p>
+    <div class="form-group">
+      <label class="form-label">CLIENT ID</label>
+      <input class="form-input" id="clientId" placeholder="amzn1.application-oa2-client.xxxxxxxx">
+    </div>
+    <div class="form-group">
+      <label class="form-label">CLIENT SECRET</label>
+      <input class="form-input" type="password" id="clientSecret" placeholder="••••••••••••••••">
+    </div>
+    <div class="form-group">
+      <label class="form-label">REFRESH TOKEN</label>
+      <input class="form-input" id="refreshToken" placeholder="Atzr|IwEBIxxxxxxxxxxxxxxxx">
+      <div class="form-hint">OAuth認証後に発行されるトークンです</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">PROFILE ID（広告アカウントID）</label>
+      <input class="form-input" id="profileId" placeholder="1234567890">
+      <div class="form-hint">日本マーケットプレイスのProfile IDを入力（/v2/profilesで取得可能）</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">MARKETPLACE</label>
+      <select class="form-input" id="marketplace">
+        <option value="jp">🇯🇵 Japan (amazon.co.jp)</option>
+        <option value="us">🇺🇸 United States (amazon.com)</option>
+        <option value="uk">🇬🇧 United Kingdom (amazon.co.uk)</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeApiModal()">キャンセル</button>
+      <button class="btn-connect" onclick="saveApiSettings()">接続する →</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+// ── DEMO DATA ──────────────────────────────────
+const campaigns = [
+  { name: 'スマートフォンケース SP', status: '有効', type: 'SP', spend: 64200, sales: 152400, acos: 42.1, roas: 2.4, budget: 3000 },
+  { name: 'ワイヤレスイヤホン KW', status: '有効', type: 'SP', spend: 58900, sales: 392600, acos: 15.0, roas: 6.7, budget: 5000 },
+  { name: 'Bluetoothスピーカー SP', status: '有効', type: 'SP', spend: 41300, sales: 186000, acos: 22.2, roas: 4.5, budget: 4000 },
+  { name: '充電器 BR', status: '有効', type: 'SB', spend: 33100, sales: 271400, acos: 12.2, roas: 8.2, budget: 3500 },
+  { name: '充電ケーブル KW', status: '停止', type: 'SP', spend: 52800, sales: 211200, acos: 25.0, roas: 4.0, budget: 3000 },
+  { name: 'USBハブ SD', status: '有効', type: 'SD', spend: 34260, sales: 209600, acos: 16.3, roas: 6.1, budget: 2500 },
+];
+
+const keywords = [
+  { kw: 'スマートフォン ケース iPhone', match: '完全一致', bid: 120, imp: 45200, clicks: 892, ctr: 1.97, spend: 107040, acos: 28.4 },
+  { kw: 'ワイヤレス イヤホン Bluetooth', match: 'フレーズ', bid: 95, imp: 68400, clicks: 1230, ctr: 1.80, spend: 116850, acos: 18.2 },
+  { kw: 'bluetooth スピーカー 防水', match: '広範', bid: 75, imp: 92100, clicks: 258, ctr: 0.28, spend: 19350, acos: 31.0 },
+  { kw: '急速充電器 USB-C', match: '完全一致', bid: 85, imp: 31400, clicks: 612, ctr: 1.95, spend: 52020, acos: 14.8 },
+  { kw: '充電 ケーブル 1m', match: 'フレーズ', bid: 60, imp: 54200, clicks: 786, ctr: 1.45, spend: 47160, acos: 22.6 },
+  { kw: 'USB ハブ 7ポート', match: '完全一致', bid: 110, imp: 28700, clicks: 445, ctr: 1.55, spend: 48950, acos: 19.1 },
+  { kw: 'iPhone ケース 透明', match: '広範', bid: 55, imp: 112000, clicks: 672, ctr: 0.60, spend: 36960, acos: 38.5 },
+];
+
+const targeting = [
+  { target: 'B09XK8PRPV (競合商品)', type: '商品ターゲティング', campaign: 'スマートフォンケース SP', bid: 140, imp: 28400, clicks: 340, spend: 47600, acos: 35.2, status: '有効' },
+  { target: 'ASIN: B08L5TNJHQ', type: '商品ターゲティング', campaign: 'ワイヤレスイヤホン KW', bid: 100, imp: 41200, clicks: 618, spend: 61800, acos: 16.8, status: '有効' },
+  { target: 'Audiophile カテゴリ', type: 'カテゴリターゲティング', campaign: 'Bluetoothスピーカー SP', bid: 80, imp: 89000, clicks: 445, spend: 35600, acos: 24.1, status: '有効' },
+  { target: 'リターゲティング 30日', type: 'オーディエンス', campaign: '充電器 BR', bid: 65, imp: 62300, clicks: 872, spend: 56680, acos: 11.4, status: '有効' },
+  { target: 'B09CBMH29V (自社関連)', type: '商品ターゲティング', campaign: '充電ケーブル KW', bid: 70, imp: 19800, clicks: 198, spend: 13860, acos: 29.7, status: '停止' },
+];
+
+// ── CHARTS ──────────────────────────────────
+const labels30 = Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDate()-29+i);return `${d.getMonth()+1}/${d.getDate()}`;});
+const spendData = labels30.map(()=>Math.round(7000+Math.random()*5000));
+const salesData = spendData.map(s=>Math.round(s*(4.2+Math.random()*1.5)));
+
+function makeChart(id, data, type='line') {
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  new Chart(ctx, {
+    type,
+    data,
+    options: {
+      responsive: true,
+      plugins: { legend: { labels: { color: '#8892a4', font: { size: 11 } } } },
+      scales: {
+        x: { ticks: { color: '#4a5568', font: { size: 10 }, maxTicksLimit: 10 }, grid: { color: '#1e2330' } },
+        y: { ticks: { color: '#4a5568', font: { size: 10 } }, grid: { color: '#1e2330' } }
+      }
+    }
+  });
+}
+
+function initCharts() {
+  // Trend
+  makeChart('trendChart', {
+    labels: labels30,
+    datasets: [
+      { label: '広告費', data: spendData, borderColor: '#ff6b35', backgroundColor: 'rgba(255,107,53,0.08)', fill: true, tension: 0.4, pointRadius: 0 },
+      { label: '売上', data: salesData, borderColor: '#00d4aa', backgroundColor: 'rgba(0,212,170,0.06)', fill: true, tension: 0.4, pointRadius: 0 }
+    ]
+  });
+
+  // ACOS bars
+  const acosEl = document.getElementById('acosBreakdown');
+  if (acosEl) {
+    const sorted = [...campaigns].sort((a,b)=>b.acos-a.acos).slice(0,5);
+    acosEl.innerHTML = sorted.map(c => {
+      const pct = Math.min(c.acos,60)/60*100;
+      const col = c.acos>35?'var(--bad)':c.acos>25?'var(--warn)':'var(--good)';
+      return `<div style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px">
+          <span style="color:var(--text2)">${c.name}</span>
+          <span style="font-family:'DM Mono',monospace;color:${col}">${c.acos}%</span>
+        </div>
+        <div style="background:var(--surface2);height:5px;border-radius:3px;overflow:hidden">
+          <div style="width:${pct}%;height:100%;background:${col};border-radius:3px"></div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // ACOS chart
+  const acosMonths = ['11月','12月','1月','2月','3月','4月'];
+  makeChart('acosChart', {
+    labels: acosMonths,
+    datasets: [{ label: 'ACOS %', data: [28.4, 26.1, 24.8, 22.3, 21.1, 20.0], borderColor: '#f5a623', backgroundColor: 'rgba(245,166,35,0.1)', fill: true, tension: 0.4 }]
+  });
+  makeChart('roasChart', {
+    labels: acosMonths,
+    datasets: [{ label: 'ROAS', data: [3.5, 3.8, 4.0, 4.5, 4.7, 5.0], borderColor: '#6c8ef5', backgroundColor: 'rgba(108,142,245,0.1)', fill: true, tension: 0.4 }]
+  });
+
+  // Perf scores
+  const perfEl = document.getElementById('perfScores');
+  if (perfEl) {
+    const scored = campaigns.map(c => {
+      const score = Math.min(100, Math.round((1/c.acos)*100 + c.roas*8));
+      return { ...c, score: Math.min(score, 100) };
+    });
+    perfEl.innerHTML = scored.map(c => {
+      const col = c.score>70?'var(--good)':c.score>50?'var(--warn)':'var(--bad)';
+      return `<div style="background:var(--surface2);padding:14px;border-radius:6px">
+        <div style="font-size:12px;margin-bottom:8px;color:var(--text2)">${c.name}</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="flex:1;background:var(--bg);height:6px;border-radius:3px;overflow:hidden">
+            <div style="width:${c.score}%;height:100%;background:${col};border-radius:3px"></div>
+          </div>
+          <span style="font-family:'DM Mono',monospace;font-size:12px;color:${col}">${c.score}</span>
+        </div>
+      </div>`;
+    }).join('');
+  }
+}
+
+// ── TABLES ──────────────────────────────────
+function acosClass(v) {
+  return v > 35 ? 'acos-bad' : v > 25 ? 'acos-warn' : 'acos-good';
+}
+
+function renderCampaigns() {
+  const tbody = document.getElementById('campBody');
+  if (!tbody) return;
+  tbody.innerHTML = campaigns.map((c,i) => `
+    <tr>
+      <td style="font-weight:500">${c.name}</td>
+      <td><span class="status-badge ${c.status==='有効'?'status-active':'status-paused'}"><span class="status-dot"></span>${c.status}</span></td>
+      <td><span style="font-family:'DM Mono',monospace;font-size:11px;padding:2px 7px;border-radius:3px;background:var(--surface2);color:var(--text2)">${c.type}</span></td>
+      <td style="font-family:'DM Mono',monospace">¥${c.spend.toLocaleString()}</td>
+      <td style="font-family:'DM Mono',monospace">¥${c.sales.toLocaleString()}</td>
+      <td class="${acosClass(c.acos)}" style="font-family:'DM Mono',monospace;font-weight:600">${c.acos}%</td>
+      <td style="font-family:'DM Mono',monospace;color:var(--accent3)">${c.roas}x</td>
+      <td style="font-family:'DM Mono',monospace">¥${c.budget.toLocaleString()}</td>
+      <td>
+        <button class="action-btn" onclick="alert('編集: ${c.name}')">編集</button>
+        <button class="action-btn pause" onclick="toggleStatus(${i})">${c.status==='有効'?'停止':'再開'}</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function toggleStatus(i) {
+  campaigns[i].status = campaigns[i].status === '有効' ? '停止' : '有効';
+  renderCampaigns();
+}
+
+function renderKeywords() {
+  const tbody = document.getElementById('kwBody');
+  if (!tbody) return;
+  tbody.innerHTML = keywords.map((k,i) => `
+    <tr>
+      <td style="font-weight:500">${k.kw}</td>
+      <td><span style="font-size:10px;font-family:'DM Mono',monospace;padding:2px 7px;border-radius:3px;background:var(--surface2);color:var(--text2)">${k.match}</span></td>
+      <td class="bid-cell">¥<input class="bid-edit" type="number" value="${k.bid}" onchange="updateBid(${i},this.value)" onblur="saveBid(${i})"> </td>
+      <td style="font-family:'DM Mono',monospace;color:var(--text2)">${k.imp.toLocaleString()}</td>
+      <td style="font-family:'DM Mono',monospace">${k.clicks.toLocaleString()}</td>
+      <td style="font-family:'DM Mono',monospace;${k.ctr<0.5?'color:var(--bad)':''}">${k.ctr}%</td>
+      <td style="font-family:'DM Mono',monospace">¥${k.spend.toLocaleString()}</td>
+      <td class="${acosClass(k.acos)}" style="font-family:'DM Mono',monospace;font-weight:600">${k.acos}%</td>
+      <td><button class="action-btn" onclick="alert('一時停止: ${k.kw}')">停止</button></td>
+    </tr>
+  `).join('');
+}
+
+function updateBid(i, val) { keywords[i].bid = parseInt(val); }
+function saveBid(i) { /* API call would go here */ }
+
+function renderTargeting() {
+  const tbody = document.getElementById('tgtBody');
+  if (!tbody) return;
+  tbody.innerHTML = targeting.map(t => `
+    <tr>
+      <td style="font-size:12px;font-family:'DM Mono',monospace">${t.target}</td>
+      <td style="font-size:11px;color:var(--text2)">${t.type}</td>
+      <td style="font-size:12px;color:var(--text2)">${t.campaign}</td>
+      <td style="font-family:'DM Mono',monospace">¥${t.bid}</td>
+      <td style="font-family:'DM Mono',monospace;color:var(--text2)">${t.imp.toLocaleString()}</td>
+      <td style="font-family:'DM Mono',monospace">${t.clicks.toLocaleString()}</td>
+      <td style="font-family:'DM Mono',monospace">¥${t.spend.toLocaleString()}</td>
+      <td class="${acosClass(t.acos)}" style="font-family:'DM Mono',monospace;font-weight:600">${t.acos}%</td>
+      <td><span class="status-badge ${t.status==='有効'?'status-active':'status-paused'}"><span class="status-dot"></span>${t.status}</span></td>
+    </tr>
+  `).join('');
+}
+
+// ── NAV / TABS ──────────────────────────────────
+const pages = ['dashboard','campaigns','keywords','targeting','kpi','alerts','ai'];
+const titles = { dashboard:'ダッシュボード', campaigns:'キャンペーン一覧', keywords:'キーワード管理', targeting:'ターゲティング', kpi:'KPI分析', alerts:'アラート', ai:'AI改善提案' };
+
+function showTab(name) {
+  pages.forEach(p => {
+    document.getElementById('page-'+p).style.display = p===name?'block':'none';
+  });
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  document.getElementById('pageTitle').textContent = titles[name] || name;
+  if (name === 'kpi') { setTimeout(initCharts, 50); }
+  if (name === 'ai') { renderAiCards(); }
+}
+
+function setDate(btn, range) {
+  document.querySelectorAll('.date-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function simulateRefresh() {
+  const btn = document.querySelector('.refresh-btn');
+  btn.textContent = '↻ 取得中...';
+  btn.disabled = true;
+  setTimeout(() => { btn.textContent = '↻ 更新'; btn.disabled = false; }, 1200);
+}
+
+// ── SORT / FILTER ──────────────────────────────────
+function filterTable(tableId, query) {
+  const rows = document.querySelectorAll('#'+tableId+' tbody tr');
+  rows.forEach(row => {
+    row.style.display = row.textContent.toLowerCase().includes(query.toLowerCase()) ? '' : 'none';
+  });
+}
+
+function filterStatus(val) {
+  const rows = document.querySelectorAll('#campTable tbody tr');
+  rows.forEach(row => {
+    if (!val) { row.style.display = ''; return; }
+    row.style.display = row.textContent.includes(val) ? '' : 'none';
+  });
+}
+
+let sortDir = {};
+function sortTable(tableId, col) {
+  sortDir[col] = !sortDir[col];
+  const tbody = document.querySelector('#'+tableId+' tbody');
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  rows.sort((a,b)=>{
+    const va = a.cells[col].textContent.replace(/[¥,%x]/g,'').trim();
+    const vb = b.cells[col].textContent.replace(/[¥,%x]/g,'').trim();
+    const na = parseFloat(va), nb = parseFloat(vb);
+    if (!isNaN(na)&&!isNaN(nb)) return sortDir[col] ? na-nb : nb-na;
+    return sortDir[col] ? va.localeCompare(vb,'ja') : vb.localeCompare(va,'ja');
+  });
+  rows.forEach(r=>tbody.appendChild(r));
+}
+
+// ── API MODAL ──────────────────────────────────
+function openApiModal() { document.getElementById('apiModal').classList.add('open'); }
+function closeApiModal() { document.getElementById('apiModal').classList.remove('open'); }
+function saveApiSettings() {
+  const id = document.getElementById('clientId').value;
+  const secret = document.getElementById('clientSecret').value;
+  const token = document.getElementById('refreshToken').value;
+  const profile = document.getElementById('profileId').value;
+  if (!id || !secret || !token || !profile) { alert('すべての項目を入力してください'); return; }
+  // Save to localStorage (for demo purposes)
+  localStorage.setItem('amzAdsConfig', JSON.stringify({ clientId: id, profileId: profile, marketplace: document.getElementById('marketplace').value }));
+  document.getElementById('apiDot').classList.add('connected');
+  document.getElementById('apiStatusText').textContent = '接続済み';
+  document.getElementById('apiBanner').style.display = 'none';
+  closeApiModal();
+  alert('✅ API設定を保存しました。\n\n実際の接続にはサーバーサイドのProxy実装が必要です（CORSのため）。\n設定値はローカルに保存されました。');
+}
+
+// ── AI ANALYSIS ──────────────────────────────────
+const aiResults = {}; // cache per campaign index
+
+function getHealthChips(c) {
+  const chips = [];
+  if (c.acos > 35) chips.push({ label: '🔴 ACOS危険域', cls: 'chip-red' });
+  else if (c.acos > 25) chips.push({ label: '🟡 ACOS要注意', cls: 'chip-yellow' });
+  else chips.push({ label: '🟢 ACOS良好', cls: 'chip-green' });
+
+  if (c.roas >= 6) chips.push({ label: `🚀 ROAS優秀 ${c.roas}x`, cls: 'chip-green' });
+  else if (c.roas >= 4) chips.push({ label: `📊 ROAS普通 ${c.roas}x`, cls: 'chip-blue' });
+  else chips.push({ label: `⚠ ROAS低い ${c.roas}x`, cls: 'chip-yellow' });
+
+  if (c.status === '停止') chips.push({ label: '⏸ 停止中', cls: 'chip-yellow' });
+  return chips;
+}
+
+function renderAiCards() {
+  const grid = document.getElementById('campAnalysisGrid');
+  if (!grid) return;
+  grid.innerHTML = campaigns.map((c, i) => {
+    const chips = getHealthChips(c);
+    const chipsHtml = chips.map(ch => `<span class="chip ${ch.cls}">${ch.label}</span>`).join('');
+    const acosColor = c.acos > 35 ? 'var(--bad)' : c.acos > 25 ? 'var(--warn)' : 'var(--good)';
+    const cached = aiResults[i];
+    const resultHtml = cached
+      ? `<div class="ai-result">${cached}</div>`
+      : `<div class="ai-placeholder"><div class="ai-placeholder-icon">✦</div><div>「分析する」ボタンを押してAI改善提案を生成</div></div>`;
+    const cardClass = cached ? 'done' : '';
+
+    return `
+    <div class="camp-analysis-card ${cardClass}" id="aicard-${i}">
+      <div class="camp-card-header">
+        <span class="camp-type-badge">${c.type}</span>
+        <span class="camp-card-name">${c.name}</span>
+        <span class="camp-card-status-badge ${c.status==='有効'?'active':'paused'}">${c.status}</span>
+      </div>
+      <div class="camp-metrics-row">
+        <div class="camp-metric">
+          <div class="camp-metric-label">SPEND</div>
+          <div class="camp-metric-value" style="font-size:13px">¥${(c.spend/1000).toFixed(0)}k</div>
+        </div>
+        <div class="camp-metric">
+          <div class="camp-metric-label">SALES</div>
+          <div class="camp-metric-value" style="font-size:13px">¥${(c.sales/1000).toFixed(0)}k</div>
+        </div>
+        <div class="camp-metric">
+          <div class="camp-metric-label">ACOS</div>
+          <div class="camp-metric-value" style="color:${acosColor}">${c.acos}%</div>
+        </div>
+        <div class="camp-metric">
+          <div class="camp-metric-label">ROAS</div>
+          <div class="camp-metric-value" style="color:var(--accent3)">${c.roas}x</div>
+        </div>
+      </div>
+      <div class="ai-result-area" id="airesult-${i}">
+        <div class="ai-insight-chips">${chipsHtml}</div>
+        ${resultHtml}
+      </div>
+      <div class="ai-actions-row">
+        <button class="analyze-btn" id="aibtn-${i}" onclick="analyzeOne(${i})">
+          <span>✦</span> 分析する
+        </button>
+        <button class="copy-btn" onclick="copyResult(${i})">コピー</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function analyzeOne(idx) {
+  const c = campaigns[idx];
+  const btn = document.getElementById(`aibtn-${idx}`);
+  const resultArea = document.getElementById(`airesult-${idx}`);
+  const card = document.getElementById(`aicard-${idx}`);
+
+  btn.disabled = true;
+  card.classList.add('analyzing');
+
+  const chips = getHealthChips(c);
+  const chipsHtml = chips.map(ch => `<span class="chip ${ch.cls}">${ch.label}</span>`).join('');
+
+  resultArea.innerHTML = `
+    <div class="ai-insight-chips">${chipsHtml}</div>
+    <div class="ai-loading"><div class="ai-spinner"></div>AIが数値を分析中...</div>`;
+
+  // Find related keywords for this campaign
+  const relatedKw = keywords.slice(0, 3); // simplified — in real app, filter by campaign
+
+  const prompt = `あなたはAmazon広告の専門コンサルタントです。以下のキャンペーンデータを分析し、改善提案を日本語で行ってください。
+
+## キャンペーン情報
+- キャンペーン名: ${c.name}
+- 広告タイプ: ${c.type} (SP=スポンサープロダクト, SB=スポンサーブランド, SD=スポンサーディスプレイ)
+- ステータス: ${c.status}
+- 広告費: ¥${c.spend.toLocaleString()}
+- 広告売上: ¥${c.sales.toLocaleString()}
+- ACOS: ${c.acos}%（業界平均目安: 20-25%）
+- ROAS: ${c.roas}x（目標: 4x以上）
+- 日予算: ¥${c.budget.toLocaleString()}
+
+## 関連キーワード例
+${relatedKw.map(k => `- "${k.kw}" 入札¥${k.bid} / CTR ${k.ctr}% / ACOS ${k.acos}%`).join('\n')}
+
+## 回答フォーマット（必ずこの構成で）
+**【現状診断】**
+2〜3文で現状の問題点や強みを簡潔に記述。
+
+**【優先度：高】改善アクション**
+Amazon管理画面で今すぐ実行すべき具体的なアクションを2〜3点。数値を含めて具体的に（例：入札額を¥120→¥85に引き下げ）。
+
+**【優先度：中】最適化アクション**
+1〜2週間以内に取り組むべき改善点を2点。
+
+**【優先度：低】長期施策**
+1〜2点、中長期で取り組む施策。
+
+**【期待効果】**
+改善後の予想ACOS・ROASを1文で。
+
+回答は簡潔かつ実務的に。Amazon管理画面での操作を前提にした具体的なアドバイスのみ。`;
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    if (!response.ok) throw new Error(`API error: ${response.status}`);
+    const data = await response.json();
+    const text = data.content?.find(b => b.type === 'text')?.text || '分析結果を取得できませんでした';
+
+    // Format markdown-ish into HTML
+    const html = formatAiText(text);
+    aiResults[idx] = html;
+
+    resultArea.innerHTML = `<div class="ai-insight-chips">${chipsHtml}</div><div class="ai-result">${html}</div>`;
+    card.classList.remove('analyzing');
+    card.classList.add('done');
+  } catch (e) {
+    resultArea.innerHTML = `<div class="ai-insight-chips">${chipsHtml}</div>
+      <div style="color:var(--bad);font-size:12px;padding:10px 0">
+        ⚠ エラー: ${e.message}<br>
+        <span style="color:var(--text3);font-size:11px">APIキーが設定されていない場合はデモ結果を表示します</span>
+      </div>`;
+    // Show demo fallback
+    const demo = getDemoAnalysis(idx);
+    aiResults[idx] = demo;
+    setTimeout(() => {
+      resultArea.innerHTML = `<div class="ai-insight-chips">${chipsHtml}</div><div class="ai-result">${demo}</div>`;
+      card.classList.remove('analyzing');
+      card.classList.add('done');
+    }, 800);
+  }
+
+  btn.disabled = false;
+}
+
+function formatAiText(text) {
+  return text
+    .replace(/\*\*【(.+?)】\*\*/g, '<div class="section-label">【$1】</div>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/優先度：高/g, '<span class="priority-high">優先度：高</span>')
+    .replace(/優先度：中/g, '<span class="priority-med">優先度：中</span>')
+    .replace(/優先度：低/g, '<span class="priority-low">優先度：低</span>')
+    .replace(/\n- /g, '<br>• ')
+    .replace(/\n/g, '<br>');
+}
+
+function getDemoAnalysis(idx) {
+  const demos = [
+    // 0: スマートフォンケース SP — ACOS 42%
+    `<div class="section-label">【現状診断】</div>
+ACOS 42%は目標の30%を大幅に超過しており、費用対効果が悪化しています。売上¥152kに対し広告費¥64kは高すぎる比率で、入札額の見直しが急務です。ROASも2.4xと低く、このままでは赤字広告になるリスクがあります。
+
+<div class="section-label">【<span class="priority-high">優先度：高</span>】今すぐ実行</div>
+• <strong>入札額を30%引き下げ</strong>：キャンペーン全体の平均入札を¥120→¥84に段階的に引き下げ（週次で-10%ずつ）<br>
+• <strong>パフォーマンス低キーワード停止</strong>：「iPhone ケース 透明」（ACOS 38.5%）を一時停止し無駄クリックを削減<br>
+• <strong>マッチタイプを絞る</strong>：広範マッチを完全一致・フレーズ一致に変更し、不要なインプレッションをカット
+
+<div class="section-label">【<span class="priority-med">優先度：中</span>】1〜2週間以内</div>
+• <strong>ネガティブキーワード追加</strong>：検索用語レポートから非関連ワードを除外リストに追加（例：「Android」「Samsung」など）<br>
+• <strong>日予算を¥2,000に削減</strong>：改善するまで予算を絞り、損失を最小化しながらデータを収集
+
+<div class="section-label">【<span class="priority-low">優先度：低</span>】長期施策</div>
+• 商品ページのCVR改善（レビュー・画像・価格競争力の見直し）でクリック単価あたりの効率向上<br>
+• 季節性に合わせたキャンペーン分割（機種別・色別）で精度の高いターゲティングに移行
+
+<div class="section-label">【期待効果】</div>
+入札額調整とネガティブキーワード追加で4週間後にACOS 28-32%・ROAS 3.1-3.6xへの改善が見込まれます。`,
+
+    // 1: ワイヤレスイヤホン KW — 好調
+    `<div class="section-label">【現状診断】</div>
+ACOS 15%、ROAS 6.7xと非常に優秀なパフォーマンスです。ただし日予算¥5,000で上限到達しており、配信機会を損失している可能性が高く「予算拡大」が最優先課題です。
+
+<div class="section-label">【<span class="priority-high">優先度：高</span>】今すぐ実行</div>
+• <strong>日予算を¥5,000→¥9,000に増額</strong>：ROAS 6.7xなら増額分も十分な利益を生みます。配信停止時間帯のデータを確認し損失額を把握<br>
+• <strong>入札額を5〜10%引き上げ</strong>：好調なキーワード（「ワイヤレス イヤホン Bluetooth」ACOS 18.2%）の入札を¥95→¥105に上げ、上位表示を確保<br>
+• <strong>時間帯別入札調整を設定</strong>：コンバージョンが高い時間帯（一般的に20〜23時）に入札倍率を120%に設定
+
+<div class="section-label">【<span class="priority-med">優先度：中</span>】1〜2週間以内</div>
+• <strong>類似キーワードの追加</strong>：「完全ワイヤレス イヤホン」「ノイズキャンセリング イヤホン」などの関連語を追加し新規流入を増やす<br>
+• <strong>スポンサーブランド広告の追加</strong>：ブランド認知を高めSBキャンペーンでCPCを下げながらカテゴリ上部の露出を確保
+
+<div class="section-label">【<span class="priority-low">優先度：低</span>】長期施策</div>
+• スポンサーディスプレイでリターゲティングキャンペーンを追加し、カート落ちユーザーへの再アプローチを強化
+
+<div class="section-label">【期待効果】</div>
+予算拡大と入札最適化で月次売上¥600k超・ACOS 14-16%維持での大幅なスケールアップが期待できます。`,
+
+    // 2: Bluetoothスピーカー SP
+    `<div class="section-label">【現状診断】</div>
+ACOS 22.2%は許容範囲内ですが、CTR 0.28%が深刻に低く、表示されてもクリックされていません。これはクリエイティブ（メイン画像・タイトル）か価格競争力の問題である可能性が高いです。
+
+<div class="section-label">【<span class="priority-high">優先度：高</span>】今すぐ実行</div>
+• <strong>メイン画像の見直し</strong>：競合上位商品と比較しクリックされやすい画像（白背景・複数アングル）に差し替え<br>
+• <strong>広範マッチを停止</strong>：「bluetooth スピーカー 防水」（CTR 0.28%、ACOS 31%）を一時停止し、完全一致・フレーズに集中<br>
+• <strong>価格見直し</strong>：競合商品の価格帯を確認し、¥200〜¥500の値下げでCTR改善を検証
+
+<div class="section-label">【<span class="priority-med">優先度：中</span>】1〜2週間以内</div>
+• <strong>A/Bテストの実施</strong>：商品タイトルに「防水IPX5」「30時間再生」など具体的スペックを追加しCTR変化を測定<br>
+• <strong>カテゴリターゲティングの入札見直し</strong>：Audiophileカテゴリ（ACOS 24.1%）の入札¥80→¥65に引き下げ
+
+<div class="section-label">【<span class="priority-low">優先度：低</span>】長期施策</div>
+• レビュー件数増加のためVine登録やFollow-upメールの活用でCTR・CVRの両方を底上げ
+
+<div class="section-label">【期待効果】</div>
+クリエイティブ改善でCTR 0.5%以上達成後、ACOS 18-20%・ROAS 5x以上への改善が見込まれます。`,
+
+    // 3: 充電器 BR — 超好調
+    `<div class="section-label">【現状診断】</div>
+ROAS 8.2x・ACOS 12.2%と全キャンペーン中最高パフォーマンスです。スポンサーブランド広告として理想的な数値を達成しており、積極的な拡大投資フェーズに入るべきタイミングです。
+
+<div class="section-label">【<span class="priority-high">優先度：高</span>】今すぐ実行</div>
+• <strong>日予算を¥3,500→¥7,000に倍増</strong>：ROAS 8.2xなら追加予算¥3,500が¥28,700の売上に変換されます<br>
+• <strong>入札額を20%引き上げ</strong>：好調なキーワード全体の入札を引き上げ、検索結果1〜3位のポジションを確保<br>
+• <strong>ビデオ広告フォーマットへ追加展開</strong>：SBビデオ広告を追加し同予算でより高いCTRを狙う
+
+<div class="section-label">【<span class="priority-med">優先度：中</span>】1〜2週間以内</div>
+• <strong>新規キーワードの横展開</strong>：「PD充電器」「GaN充電器」「65W充電器」など関連ロングテールキーワードを新規追加<br>
+• <strong>スポンサープロダクト連携キャンペーンを追加</strong>：SBで流入したユーザーをSPで再捕捉するマルチキャンペーン戦略
+
+<div class="section-label">【<span class="priority-low">優先度：低</span>】長期施策</div>
+• DSP（Amazon広告プラットフォーム）への展開で、購入検討層へのオフサイトリーチを追加
+
+<div class="section-label">【期待効果】</div>
+予算倍増と入札引き上げで月次売上¥500k超を維持しながら、ROAS 7-8xをキープする拡大成長が期待されます。`,
+
+    // 4: 充電ケーブル KW — 停止中
+    `<div class="section-label">【現状診断】</div>
+現在停止中ですが、ACOS 25%・ROAS 4.0xは再開可能な水準です。停止理由（ACOS超過か予算問題か）を確認した上で、条件付きで再開を検討する価値があります。
+
+<div class="section-label">【<span class="priority-high">優先度：高</span>】今すぐ実行</div>
+• <strong>停止理由を確認</strong>：セラーセントラルの「キャンペーン履歴」で停止トリガーを特定<br>
+• <strong>入札額を-20%調整してから再開</strong>：現入札から20%下げた状態でテスト再開し、ACOS 20%以下を目標に設定<br>
+• <strong>日予算を¥2,000に絞って再開</strong>：少ない予算で1〜2週間データを再取得し、採算性を再評価
+
+<div class="section-label">【<span class="priority-med">優先度：中</span>】1〜2週間以内</div>
+• <strong>キーワードを精査して再起動</strong>：過去のパフォーマンスデータから上位10キーワードのみに絞り込んで再開<br>
+• <strong>マッチタイプを完全一致のみに変更</strong>：フレーズ・広範の無駄クリックを排除し精度を上げる
+
+<div class="section-label">【<span class="priority-low">優先度：低</span>】長期施策</div>
+• 商品ページのCVR改善（先週比-22%の原因調査）を優先し、CVRが回復してから本格再開
+
+<div class="section-label">【期待効果】</div>
+段階的再開と入札最適化で4週間後にACOS 20-22%・ROAS 4.5xへの改善が見込まれます。`,
+
+    // 5: USBハブ SD
+    `<div class="section-label">【現状診断】</div>
+ACOS 16.3%・ROAS 6.1xと安定した優良キャンペーンです。スポンサーディスプレイ広告として十分な効果を発揮していますが、日予算¥2,500は同タイプとして低く、拡大余地があります。
+
+<div class="section-label">【<span class="priority-high">優先度：高</span>】今すぐ実行</div>
+• <strong>日予算を¥2,500→¥4,500に増額</strong>：ROAS 6.1xなら追加¥2,000が¥12,200の売上に変換されます<br>
+• <strong>リターゲティング期間を30日→60日に拡大</strong>：ディスプレイ広告のオーディエンス期間を延長し、長期検討層へのリーチを拡大<br>
+• <strong>類似商品ASINへのターゲティング追加</strong>：競合USB Hub商品ページへの直接広告表示を追加
+
+<div class="section-label">【<span class="priority-med">優先度：中</span>】1〜2週間以内</div>
+• <strong>クリエイティブのA/Bテスト</strong>：「7ポート」「4K対応」「USB-C付き」の訴求点別に複数バナーをテスト<br>
+• <strong>購入済みユーザーへのクロスセル設定</strong>：充電器・ケーブル購入者へUSBハブを表示するオーディエンス設定
+
+<div class="section-label">【<span class="priority-low">優先度：低</span>】長期施策</div>
+• PC周辺機器カテゴリ全体へのカテゴリターゲティング追加でリーチ層を拡大
+
+<div class="section-label">【期待効果】</div>
+予算増額とターゲティング拡大でACOS 15-18%を維持しながら月次売上¥350k超への成長が期待されます。`
+  ];
+  return demos[idx] || '<div style="color:var(--text3)">デモデータがありません</div>';
+}
+
+async function analyzeAll() {
+  const btn = document.getElementById('analyzeAllBtn');
+  const icon = document.getElementById('analyzeAllIcon');
+  btn.disabled = true;
+  icon.innerHTML = '<span style="display:inline-block;animation:spin 0.7s linear infinite">↻</span>';
+
+  for (let i = 0; i < campaigns.length; i++) {
+    if (!aiResults[i]) {
+      await analyzeOne(i);
+      await new Promise(r => setTimeout(r, 400));
+    }
+  }
+
+  btn.disabled = false;
+  icon.textContent = '✓';
+}
+
+function copyResult(idx) {
+  const el = document.getElementById(`airesult-${idx}`);
+  if (!el) return;
+  const text = el.innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = event.currentTarget;
+    btn.textContent = '✓ コピー完了';
+    setTimeout(() => { btn.textContent = 'コピー'; }, 1500);
+  });
+}
+
+// ── API DATA FETCH ────────────────────────────────────
+const API_BASE = '/api/proxy';
+let apiLoaded = false;
+
+async function fetchApi(endpoint) {
+  const res = await fetch(`${API_BASE}?endpoint=${endpoint}`);
+  if (!res.ok) throw new Error(`${endpoint}: ${res.status}`);
+  return res.json();
+}
+
+// Amazon APIレスポンスをダッシュボード用データに変換
+function normalizeCampaigns(raw) {
+  if (!Array.isArray(raw)) return null;
+  return raw.map(c => ({
+    name:   c.name || c.campaignId || '不明',
+    status: c.state === 'enabled' ? '有効' : '停止',
+    type:   'SP',
+    spend:  Math.round((c.cost || 0)),
+    sales:  Math.round((c.attributedSales30d || 0)),
+    acos:   c.cost && c.attributedSales30d
+              ? Math.round(c.cost / c.attributedSales30d * 1000) / 10
+              : 0,
+    roas:   c.cost && c.attributedSales30d
+              ? Math.round(c.attributedSales30d / c.cost * 10) / 10
+              : 0,
+    budget: Math.round(c.dailyBudget || 0),
+  }));
+}
+
+function normalizeKeywords(raw) {
+  if (!Array.isArray(raw)) return null;
+  return raw.map(k => ({
+    kw:     k.keywordText || k.keyword || '不明',
+    match:  k.matchType === 'exact' ? '完全一致'
+          : k.matchType === 'phrase' ? 'フレーズ'
+          : '広範',
+    bid:    Math.round(k.bid || 0),
+    imp:    k.impressions || 0,
+    clicks: k.clicks || 0,
+    ctr:    k.impressions ? Math.round(k.clicks / k.impressions * 10000) / 100 : 0,
+    spend:  Math.round(k.cost || 0),
+    acos:   k.cost && k.attributedSales30d
+              ? Math.round(k.cost / k.attributedSales30d * 1000) / 10
+              : 0,
+  }));
+}
+
+function showApiError(msg) {
+  const banner = document.getElementById('apiBanner');
+  banner.style.display = 'flex';
+  banner.style.background = 'linear-gradient(135deg, rgba(232,72,85,0.1), rgba(255,107,53,0.05))';
+  banner.style.borderColor = 'rgba(232,72,85,0.3)';
+  banner.querySelector('h3').textContent = 'API接続エラー';
+  banner.querySelector('h3').style.color = 'var(--bad)';
+  banner.querySelector('p').textContent = msg;
+  banner.querySelector('.steps').style.display = 'none';
+  banner.querySelector('.api-setup-btn').style.display = 'none';
+}
+
+async function loadRealData() {
+  if (apiLoaded) return;
+
+  // ヘルスチェック
+  try {
+    const health = await fetchApi('health');
+    if (health.status !== 'ok') throw new Error('Proxy未起動');
+  } catch(e) {
+    // Proxyが動いていない場合はデモデータのまま
+    console.warn('[API] Proxy未接続 — デモデータで表示:', e.message);
+    return;
+  }
+
+  // ローディング表示
+  document.getElementById('apiStatusText').textContent = '読み込み中...';
+
+  try {
+    // キャンペーン取得
+    const rawCampaigns = await fetchApi('campaigns');
+    const normalized = normalizeCampaigns(rawCampaigns);
+    if (normalized && normalized.length > 0) {
+      campaigns.length = 0;
+      normalized.forEach(c => campaigns.push(c));
+    }
+
+    // キーワード取得
+    try {
+      const rawKeywords = await fetchApi('keywords');
+      const normKw = normalizeKeywords(rawKeywords);
+      if (normKw && normKw.length > 0) {
+        keywords.length = 0;
+        normKw.forEach(k => keywords.push(k));
+      }
+    } catch(e) { console.warn('[API] キーワード取得失敗:', e.message); }
+
+    // 接続成功
+    document.getElementById('apiDot').classList.add('connected');
+    document.getElementById('apiStatusText').textContent = `接続済み (${campaigns.length}件)`;
+    document.getElementById('apiBanner').style.display = 'none';
+    apiLoaded = true;
+
+    // KPI再計算
+    const totalSpend = campaigns.reduce((s,c) => s + c.spend, 0);
+    const totalSales = campaigns.reduce((s,c) => s + c.sales, 0);
+    const avgAcos    = totalSpend && totalSales ? Math.round(totalSpend/totalSales*1000)/10 : 0;
+    const avgRoas    = totalSpend && totalSales ? Math.round(totalSales/totalSpend*10)/10 : 0;
+
+    document.querySelectorAll('.kpi-value')[0].textContent = `¥${totalSpend.toLocaleString()}`;
+    document.querySelectorAll('.kpi-value')[1].textContent = `¥${totalSales.toLocaleString()}`;
+    document.querySelectorAll('.kpi-value')[2].textContent = `${avgAcos}%`;
+    document.querySelectorAll('.kpi-value')[3].textContent = `${avgRoas}x`;
+
+    // テーブル再描画
+    renderCampaigns();
+    renderKeywords();
+
+  } catch(e) {
+    console.error('[API] データ取得失敗:', e.message);
+    showApiError(`データ取得に失敗しました: ${e.message}`);
+    document.getElementById('apiStatusText').textContent = 'エラー';
+  }
+}
+
+// ── INIT ──────────────────────────────────
+renderCampaigns();
+renderKeywords();
+renderTargeting();
+initCharts();
+
+// 起動時にAPIデータ取得を試みる
+loadRealData();
+
+// 更新ボタンにも紐付け
+const origRefresh = window.simulateRefresh;
+window.simulateRefresh = function() {
+  apiLoaded = false;
+  loadRealData();
+  origRefresh && origRefresh();
+};
+</script>
+</body>
+</html>
