@@ -1587,31 +1587,39 @@ async function fetchApi(endpoint) {
 
 // Amazon APIレスポンスをダッシュボード用データに変換
 function normalizeCampaigns(raw) {
-  if (!Array.isArray(raw)) return null;
-  return raw.map(c => ({
+  // v3 API: { campaigns: [...], totalResults: N }
+  const list = Array.isArray(raw) ? raw
+             : (raw && Array.isArray(raw.campaigns)) ? raw.campaigns
+             : null;
+  if (!list) return null;
+  return list.map(c => ({
     name:   c.name || c.campaignId || '不明',
-    status: c.state === 'enabled' ? '有効' : '停止',
-    type:   'SP',
-    spend:  Math.round((c.cost || 0)),
-    sales:  Math.round((c.attributedSales30d || 0)),
+    status: (c.state === 'ENABLED' || c.state === 'enabled') ? '有効' : '停止',
+    type:   c.targetingType === 'AUTO' ? 'オート' : 'マニュアル',
+    spend:  Math.round(c.cost || 0),
+    sales:  Math.round(c.attributedSales30d || 0),
     acos:   c.cost && c.attributedSales30d
               ? Math.round(c.cost / c.attributedSales30d * 1000) / 10
               : 0,
     roas:   c.cost && c.attributedSales30d
               ? Math.round(c.attributedSales30d / c.cost * 10) / 10
               : 0,
-    budget: Math.round(c.dailyBudget || 0),
+    budget: Math.round(c.budget?.budget || c.dailyBudget || 0),
   }));
 }
 
 function normalizeKeywords(raw) {
-  if (!Array.isArray(raw)) return null;
-  return raw.map(k => ({
+  // v3 API: { keywords: [...], totalResults: N }
+  const list = Array.isArray(raw) ? raw
+             : (raw && Array.isArray(raw.keywords)) ? raw.keywords
+             : null;
+  if (!list) return null;
+  return list.map(k => ({
     kw:     k.keywordText || k.keyword || '不明',
-    match:  k.matchType === 'exact' ? '完全一致'
-          : k.matchType === 'phrase' ? 'フレーズ'
+    match:  (k.matchType === 'EXACT' || k.matchType === 'exact') ? '完全一致'
+          : (k.matchType === 'PHRASE' || k.matchType === 'phrase') ? 'フレーズ'
           : '広範',
-    bid:    Math.round(k.bid || 0),
+    bid:    Math.round(k.bid?.value || k.bid || 0),
     imp:    k.impressions || 0,
     clicks: k.clicks || 0,
     ctr:    k.impressions ? Math.round(k.clicks / k.impressions * 10000) / 100 : 0,
