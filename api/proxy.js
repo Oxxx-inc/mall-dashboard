@@ -95,10 +95,10 @@ module.exports = async function handler(req, res) {
   const { endpoint } = req.query;
 
   const routes = {
-    campaigns: '/v2/sp/campaigns?stateFilter=enabled,paused&count=100',
-    adgroups:  '/v2/sp/adGroups?stateFilter=enabled,paused&count=100',
-    keywords:  '/v2/sp/keywords?stateFilter=enabled,paused&count=200',
-    targets:   '/v2/sp/targets?stateFilter=enabled,paused&count=200',
+    campaigns: '/sp/campaigns?stateFilter=ENABLED,PAUSED&count=100',
+    adgroups:  '/sp/adGroups?stateFilter=ENABLED,PAUSED&count=100',
+    keywords:  '/sp/keywords?stateFilter=ENABLED,PAUSED&count=200',
+    targets:   '/sp/targets?stateFilter=ENABLED,PAUSED&count=200',
     health:    null,
   };
 
