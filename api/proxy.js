@@ -1,26 +1,17 @@
 /**
  * Amazon広告API Proxy
  * Vercel Serverless Function（/api/proxy.js）
- * 
- * フロントエンドからのリクエストをAmazon広告APIに中継します
- * 環境変数はVercelのEnvironment Variablesで設定してください
  */
 
 const https = require('https');
 
-const {
-  AMZ_CLIENT_ID,
-  AMZ_CLIENT_SECRET,
-  AMZ_REFRESH_TOKEN,
-  AMZ_PROFILE_ID,
-} = process.env;
+const AMZ_CLIENT_ID     = (process.env.AMZ_CLIENT_ID     || '').trim();
+const AMZ_CLIENT_SECRET = (process.env.AMZ_CLIENT_SECRET || '').trim();
+const AMZ_REFRESH_TOKEN = (process.env.AMZ_REFRESH_TOKEN || '').trim();
+const AMZ_PROFILE_ID    = (process.env.AMZ_PROFILE_ID    || '').trim();
 
-const TOKEN_URL  = 'api.amazon.co.jp';
-const ADS_HOST   = 'advertising-api-fe.amazon.com';
-
-// ── Access Token キャッシュ ──────────────────────────
-let cachedToken  = null;
-let tokenExpiry  = 0;
+const TOKEN_URL = 'api.amazon.co.jp';
+const ADS_HOST  = 'advertising-api-fe.amazon.com';
 
 function httpsPost(hostname, path, body) {
   return new Promise((resolve, reject) => {
@@ -36,7 +27,7 @@ function httpsPost(hostname, path, body) {
       res.on('data', c => raw += c);
       res.on('end', () => {
         try { resolve(JSON.parse(raw)); }
-        catch { reject(new Error('JSON parse error: ' + raw)); }
+        catch (e) { reject(new Error('Token parse error: ' + raw)); }
       });
     });
     req.on('error', reject);
@@ -52,7 +43,7 @@ function httpsGet(hostname, path, headers) {
       res.on('data', c => raw += c);
       res.on('end', () => {
         try { resolve({ status: res.statusCode, data: JSON.parse(raw) }); }
-        catch { reject(new Error('JSON parse error: ' + raw)); }
+        catch (e) { reject(new Error('Response parse error: ' + raw.slice(0, 200))); }
       });
     });
     req.on('error', reject);
@@ -61,17 +52,17 @@ function httpsGet(hostname, path, headers) {
 }
 
 async function getAccessToken() {
-  if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
   const res = await httpsPost(TOKEN_URL, '/auth/o2/token', {
     grant_type:    'refresh_token',
     refresh_token: AMZ_REFRESH_TOKEN,
     client_id:     AMZ_CLIENT_ID,
     client_secret: AMZ_CLIENT_SECRET,
   });
-  if (!res.access_token) throw new Error('Token取得失敗: ' + JSON.stringify(res));
-  cachedToken = res.access_token;
-  tokenExpiry = Date.now() + (res.expires_in - 60) * 1000;
-  return cachedToken;
+  if (!res.access_token) {
+    throw new Error('Token取得失敗: ' + JSON.stringify(res));
+  }
+  // 改行・空白を除去して返す
+  return res.access_token.trim().replace(/\s/g, '');
 }
 
 async function adsGet(path) {
@@ -84,9 +75,7 @@ async function adsGet(path) {
   });
 }
 
-// ── メインハンドラ ──────────────────────────────────
 module.exports = async function handler(req, res) {
-  // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
