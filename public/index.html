@@ -1469,32 +1469,71 @@ function saveApiSettings() {
 // ── AI ANALYSIS ──────────────────────────────────
 const aiResults = {}; // cache per campaign index
 
+// ── AI分析設定 ────────────────────────────────────────
+const TARGET_ROAS = 4.0;   // 目標ROAS 400%
+const TARGET_ACOS = 25.0;  // 対応するACOS目標（1/4 = 25%）
+
+function getRoasStatus(roas) {
+  if (roas >= TARGET_ROAS * 1.5) return { label: `🚀 ROAS ${roas}x 目標大幅超過`, cls: 'chip-green' };
+  if (roas >= TARGET_ROAS)       return { label: `✅ ROAS ${roas}x 目標達成`, cls: 'chip-green' };
+  if (roas >= TARGET_ROAS * 0.7) return { label: `🟡 ROAS ${roas}x 目標近い`, cls: 'chip-yellow' };
+  if (roas > 0)                  return { label: `🔴 ROAS ${roas}x 目標未達`, cls: 'chip-red' };
+  return { label: '⏸ データなし', cls: 'chip-blue' };
+}
+
 function getHealthChips(c) {
   const chips = [];
-  if (c.acos > 35) chips.push({ label: '🔴 ACOS危険域', cls: 'chip-red' });
-  else if (c.acos > 25) chips.push({ label: '🟡 ACOS要注意', cls: 'chip-yellow' });
-  else chips.push({ label: '🟢 ACOS良好', cls: 'chip-green' });
 
-  if (c.roas >= 6) chips.push({ label: `🚀 ROAS優秀 ${c.roas}x`, cls: 'chip-green' });
-  else if (c.roas >= 4) chips.push({ label: `📊 ROAS普通 ${c.roas}x`, cls: 'chip-blue' });
-  else chips.push({ label: `⚠ ROAS低い ${c.roas}x`, cls: 'chip-yellow' });
+  // ROAS起点（メイン指標）
+  chips.push(getRoasStatus(c.roas));
+
+  // ACOS補助
+  if (c.spend > 0) {
+    if (c.acos > TARGET_ACOS * 1.4) chips.push({ label: `🔴 ACOS ${c.acos}% 高`, cls: 'chip-red' });
+    else if (c.acos > TARGET_ACOS)  chips.push({ label: `🟡 ACOS ${c.acos}%`, cls: 'chip-yellow' });
+    else if (c.acos > 0)            chips.push({ label: `✅ ACOS ${c.acos}%`, cls: 'chip-green' });
+  }
 
   if (c.status === '停止') chips.push({ label: '⏸ 停止中', cls: 'chip-yellow' });
+  if (c.type === 'オート') chips.push({ label: '🤖 オート', cls: 'chip-blue' });
+
   return chips;
 }
 
 function renderAiCards() {
   const grid = document.getElementById('campAnalysisGrid');
   if (!grid) return;
-  grid.innerHTML = campaigns.map((c, i) => {
+
+  // ROAS順（低い順 = 改善優先度が高い順）でソート
+  const sorted = [...campaigns].map((c,i) => ({...c, origIdx: i}))
+    .sort((a,b) => {
+      if (a.spend === 0 && b.spend > 0) return 1;
+      if (b.spend === 0 && a.spend > 0) return -1;
+      return a.roas - b.roas;
+    });
+
+  grid.innerHTML = sorted.map((c) => {
+    const i = c.origIdx;
     const chips = getHealthChips(c);
     const chipsHtml = chips.map(ch => `<span class="chip ${ch.cls}">${ch.label}</span>`).join('');
-    const acosColor = c.acos > 35 ? 'var(--bad)' : c.acos > 25 ? 'var(--warn)' : 'var(--good)';
-    const cached = aiResults[i];
+    const roasColor = c.roas >= TARGET_ROAS ? 'var(--good)' : c.roas > 0 ? 'var(--bad)' : 'var(--text3)';
+    const acosColor = c.acos > TARGET_ACOS ? 'var(--bad)' : c.acos > 0 ? 'var(--good)' : 'var(--text3)';
+    const cached    = aiResults[i];
+    const hasData   = c.spend > 0;
+
     const resultHtml = cached
       ? `<div class="ai-result">${cached}</div>`
-      : `<div class="ai-placeholder"><div class="ai-placeholder-icon">✦</div><div>「分析する」ボタンを押してAI改善提案を生成</div></div>`;
+      : `<div class="ai-placeholder">
+          <div class="ai-placeholder-icon">${hasData ? '✦' : '⏸'}</div>
+          <div>${hasData ? '「分析する」を押してROAS改善提案を生成' : 'データ未取得（停止中または広告費¥0）'}</div>
+        </div>`;
     const cardClass = cached ? 'done' : '';
+
+    // ROAS目標との差分
+    const roasDiff = c.roas > 0 ? ((c.roas - TARGET_ROAS) / TARGET_ROAS * 100).toFixed(0) : null;
+    const roasDiffHtml = roasDiff !== null
+      ? `<div style="font-size:9px;font-family:'DM Mono',monospace;margin-top:2px;color:${Number(roasDiff)>=0?'var(--good)':'var(--bad)'}">${Number(roasDiff)>=0?'+':''}${roasDiff}% vs目標</div>`
+      : '';
 
     return `
     <div class="camp-analysis-card ${cardClass}" id="aicard-${i}">
@@ -1506,19 +1545,20 @@ function renderAiCards() {
       <div class="camp-metrics-row">
         <div class="camp-metric">
           <div class="camp-metric-label">SPEND</div>
-          <div class="camp-metric-value" style="font-size:13px">¥${(c.spend/1000).toFixed(0)}k</div>
+          <div class="camp-metric-value" style="font-size:13px">¥${c.spend>0?(c.spend/1000).toFixed(1)+'k':'—'}</div>
         </div>
         <div class="camp-metric">
           <div class="camp-metric-label">SALES</div>
-          <div class="camp-metric-value" style="font-size:13px">¥${(c.sales/1000).toFixed(0)}k</div>
+          <div class="camp-metric-value" style="font-size:13px">¥${c.sales>0?(c.sales/1000).toFixed(1)+'k':'—'}</div>
         </div>
         <div class="camp-metric">
-          <div class="camp-metric-label">ACOS</div>
-          <div class="camp-metric-value" style="color:${acosColor}">${c.acos}%</div>
+          <div class="camp-metric-label">ROAS <span style="font-size:8px;color:var(--text3)">目標4x</span></div>
+          <div class="camp-metric-value" style="color:${roasColor}">${c.roas>0?c.roas+'x':'—'}</div>
+          ${roasDiffHtml}
         </div>
         <div class="camp-metric">
-          <div class="camp-metric-label">ROAS</div>
-          <div class="camp-metric-value" style="color:var(--accent3)">${c.roas}x</div>
+          <div class="camp-metric-label">ACOS <span style="font-size:8px;color:var(--text3)">目標25%</span></div>
+          <div class="camp-metric-value" style="color:${acosColor}">${c.acos>0?c.acos+'%':'—'}</div>
         </div>
       </div>
       <div class="ai-result-area" id="airesult-${i}">
@@ -1526,8 +1566,8 @@ function renderAiCards() {
         ${resultHtml}
       </div>
       <div class="ai-actions-row">
-        <button class="analyze-btn" id="aibtn-${i}" onclick="analyzeOne(${i})">
-          <span>✦</span> 分析する
+        <button class="analyze-btn" id="aibtn-${i}" onclick="analyzeOne(${i})" ${!hasData?'disabled':''}>
+          <span>✦</span> ${hasData ? 'ROAS改善提案を生成' : 'データなし'}
         </button>
         <button class="copy-btn" onclick="copyResult(${i})">コピー</button>
       </div>
@@ -1537,9 +1577,12 @@ function renderAiCards() {
 
 async function analyzeOne(idx) {
   const c = campaigns[idx];
+  if (!c) return;
+
   const btn = document.getElementById(`aibtn-${idx}`);
   const resultArea = document.getElementById(`airesult-${idx}`);
   const card = document.getElementById(`aicard-${idx}`);
+  if (!btn || !resultArea || !card) return;
 
   btn.disabled = true;
   card.classList.add('analyzing');
@@ -1549,50 +1592,71 @@ async function analyzeOne(idx) {
 
   resultArea.innerHTML = `
     <div class="ai-insight-chips">${chipsHtml}</div>
-    <div class="ai-loading"><div class="ai-spinner"></div>AIが数値を分析中...</div>`;
+    <div class="ai-loading"><div class="ai-spinner"></div>ROASデータを分析中...</div>`;
 
-  // Find related keywords for this campaign
-  const relatedKw = keywords.slice(0, 3); // simplified — in real app, filter by campaign
+  // 関連キーワード（上位5件）
+  const relatedKw = keywords.slice(0, 5);
+  const kwText = relatedKw.length > 0
+    ? relatedKw.map(k => `- "${k.kw}" [${k.match}] 入札¥${k.bid} / imp${k.imp} / CTR${k.ctr}% / 広告費¥${k.spend} / ACOS${k.acos}%`).join('\n')
+    : '（キーワードデータ未取得）';
 
-  const prompt = `あなたはAmazon広告の専門コンサルタントです。以下のキャンペーンデータを分析し、改善提案を日本語で行ってください。
+  // ROAS目標との乖離を計算
+  const roasGap   = c.roas > 0 ? (c.roas - TARGET_ROAS).toFixed(1) : null;
+  const roasGapPct = c.roas > 0 ? ((c.roas - TARGET_ROAS) / TARGET_ROAS * 100).toFixed(0) : null;
+  const roasStatus = c.roas >= TARGET_ROAS
+    ? `目標達成（+${roasGap}x、目標比+${roasGapPct}%）`
+    : c.roas > 0
+    ? `目標未達（${roasGap}x、目標比${roasGapPct}%）`
+    : 'データなし（停止中または広告費¥0）';
 
-## キャンペーン情報
+  const prompt = `あなたはAmazon広告のROAS改善専門コンサルタントです。ROAS 400%（4x）を絶対的な目標値として、以下のキャンペーンデータを分析し、具体的な改善提案を日本語で行ってください。
+
+## キャンペーンデータ（実績値・過去30日）
 - キャンペーン名: ${c.name}
-- 広告タイプ: ${c.type} (SP=スポンサープロダクト, SB=スポンサーブランド, SD=スポンサーディスプレイ)
+- ターゲティング: ${c.type}（オート/マニュアル）
 - ステータス: ${c.status}
 - 広告費: ¥${c.spend.toLocaleString()}
 - 広告売上: ¥${c.sales.toLocaleString()}
-- ACOS: ${c.acos}%（業界平均目安: 20-25%）
-- ROAS: ${c.roas}x（目標: 4x以上）
+- **ROAS: ${c.roas}x**（目標: 4x = 400%）→ ${roasStatus}
+- ACOS: ${c.acos}%（目標: 25%以下）
+- クリック数: ${(c.clicks||0).toLocaleString()}
+- imp: ${(c.imp||0).toLocaleString()}
 - 日予算: ¥${c.budget.toLocaleString()}
 
-## 関連キーワード例
-${relatedKw.map(k => `- "${k.kw}" 入札¥${k.bid} / CTR ${k.ctr}% / ACOS ${k.acos}%`).join('\n')}
+## 関連キーワード
+${kwText}
+
+## 分析の軸
+- ROAS 4xを最優先目標として評価・提案すること
+- 目標未達の場合: ROAS改善のための具体的な入札・予算・キーワード戦略
+- 目標達成の場合: ROAS維持しながらスケールアップする戦略
+- すべての提案はAmazonセラーセントラルの管理画面で実行できる操作に限定
 
 ## 回答フォーマット（必ずこの構成で）
-**【現状診断】**
-2〜3文で現状の問題点や強みを簡潔に記述。
 
-**【優先度：高】改善アクション**
-Amazon管理画面で今すぐ実行すべき具体的なアクションを2〜3点。数値を含めて具体的に（例：入札額を¥120→¥85に引き下げ）。
+**【ROAS診断】**
+現在のROASと目標4xとの差を数値で明確に示し、2文で状況を説明。
 
-**【優先度：中】最適化アクション**
-1〜2週間以内に取り組むべき改善点を2点。
+**【優先度：高】今週実行するアクション**
+Amazon管理画面で今すぐ実行する操作を2〜3点。必ず具体的な数値を含める（例：入札額¥120→¥90に変更、日予算¥3,000→¥5,000に増額）。
 
-**【優先度：低】長期施策**
-1〜2点、中長期で取り組む施策。
+**【優先度：中】2週間以内の最適化**
+2点。キーワード・ターゲティング・マッチタイプの調整を含めること。
 
-**【期待効果】**
-改善後の予想ACOS・ROASを1文で。
+**【優先度：低】中長期施策**
+1〜2点。
 
-回答は簡潔かつ実務的に。Amazon管理画面での操作を前提にした具体的なアドバイスのみ。`;
+**【ROAS改善シミュレーション】**
+現状の数値を前提に、提案実施後に期待されるROASの変化を具体的な数値で1〜2文で示す。
+
+簡潔・実務的に。数値根拠を必ず示すこと。`;
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 1000,
         messages: [{ role: 'user', content: prompt }]
       })
@@ -1601,8 +1665,6 @@ Amazon管理画面で今すぐ実行すべき具体的なアクションを2〜3
     if (!response.ok) throw new Error(`API error: ${response.status}`);
     const data = await response.json();
     const text = data.content?.find(b => b.type === 'text')?.text || '分析結果を取得できませんでした';
-
-    // Format markdown-ish into HTML
     const html = formatAiText(text);
     aiResults[idx] = html;
 
@@ -1611,18 +1673,9 @@ Amazon管理画面で今すぐ実行すべき具体的なアクションを2〜3
     card.classList.add('done');
   } catch (e) {
     resultArea.innerHTML = `<div class="ai-insight-chips">${chipsHtml}</div>
-      <div style="color:var(--bad);font-size:12px;padding:10px 0">
-        ⚠ エラー: ${e.message}<br>
-        <span style="color:var(--text3);font-size:11px">APIキーが設定されていない場合はデモ結果を表示します</span>
-      </div>`;
-    // Show demo fallback
-    const demo = getDemoAnalysis(idx);
-    aiResults[idx] = demo;
-    setTimeout(() => {
-      resultArea.innerHTML = `<div class="ai-insight-chips">${chipsHtml}</div><div class="ai-result">${demo}</div>`;
-      card.classList.remove('analyzing');
-      card.classList.add('done');
-    }, 800);
+      <div style="color:var(--bad);font-size:12px;padding:10px 0">⚠ エラー: ${e.message}</div>`;
+    card.classList.remove('analyzing');
+    card.classList.add('error-state');
   }
 
   btn.disabled = false;
@@ -1637,126 +1690,6 @@ function formatAiText(text) {
     .replace(/優先度：低/g, '<span class="priority-low">優先度：低</span>')
     .replace(/\n- /g, '<br>• ')
     .replace(/\n/g, '<br>');
-}
-
-function getDemoAnalysis(idx) {
-  const demos = [
-    // 0: スマートフォンケース SP — ACOS 42%
-    `<div class="section-label">【現状診断】</div>
-ACOS 42%は目標の30%を大幅に超過しており、費用対効果が悪化しています。売上¥152kに対し広告費¥64kは高すぎる比率で、入札額の見直しが急務です。ROASも2.4xと低く、このままでは赤字広告になるリスクがあります。
-
-<div class="section-label">【<span class="priority-high">優先度：高</span>】今すぐ実行</div>
-• <strong>入札額を30%引き下げ</strong>：キャンペーン全体の平均入札を¥120→¥84に段階的に引き下げ（週次で-10%ずつ）<br>
-• <strong>パフォーマンス低キーワード停止</strong>：「iPhone ケース 透明」（ACOS 38.5%）を一時停止し無駄クリックを削減<br>
-• <strong>マッチタイプを絞る</strong>：広範マッチを完全一致・フレーズ一致に変更し、不要なインプレッションをカット
-
-<div class="section-label">【<span class="priority-med">優先度：中</span>】1〜2週間以内</div>
-• <strong>ネガティブキーワード追加</strong>：検索用語レポートから非関連ワードを除外リストに追加（例：「Android」「Samsung」など）<br>
-• <strong>日予算を¥2,000に削減</strong>：改善するまで予算を絞り、損失を最小化しながらデータを収集
-
-<div class="section-label">【<span class="priority-low">優先度：低</span>】長期施策</div>
-• 商品ページのCVR改善（レビュー・画像・価格競争力の見直し）でクリック単価あたりの効率向上<br>
-• 季節性に合わせたキャンペーン分割（機種別・色別）で精度の高いターゲティングに移行
-
-<div class="section-label">【期待効果】</div>
-入札額調整とネガティブキーワード追加で4週間後にACOS 28-32%・ROAS 3.1-3.6xへの改善が見込まれます。`,
-
-    // 1: ワイヤレスイヤホン KW — 好調
-    `<div class="section-label">【現状診断】</div>
-ACOS 15%、ROAS 6.7xと非常に優秀なパフォーマンスです。ただし日予算¥5,000で上限到達しており、配信機会を損失している可能性が高く「予算拡大」が最優先課題です。
-
-<div class="section-label">【<span class="priority-high">優先度：高</span>】今すぐ実行</div>
-• <strong>日予算を¥5,000→¥9,000に増額</strong>：ROAS 6.7xなら増額分も十分な利益を生みます。配信停止時間帯のデータを確認し損失額を把握<br>
-• <strong>入札額を5〜10%引き上げ</strong>：好調なキーワード（「ワイヤレス イヤホン Bluetooth」ACOS 18.2%）の入札を¥95→¥105に上げ、上位表示を確保<br>
-• <strong>時間帯別入札調整を設定</strong>：コンバージョンが高い時間帯（一般的に20〜23時）に入札倍率を120%に設定
-
-<div class="section-label">【<span class="priority-med">優先度：中</span>】1〜2週間以内</div>
-• <strong>類似キーワードの追加</strong>：「完全ワイヤレス イヤホン」「ノイズキャンセリング イヤホン」などの関連語を追加し新規流入を増やす<br>
-• <strong>スポンサーブランド広告の追加</strong>：ブランド認知を高めSBキャンペーンでCPCを下げながらカテゴリ上部の露出を確保
-
-<div class="section-label">【<span class="priority-low">優先度：低</span>】長期施策</div>
-• スポンサーディスプレイでリターゲティングキャンペーンを追加し、カート落ちユーザーへの再アプローチを強化
-
-<div class="section-label">【期待効果】</div>
-予算拡大と入札最適化で月次売上¥600k超・ACOS 14-16%維持での大幅なスケールアップが期待できます。`,
-
-    // 2: Bluetoothスピーカー SP
-    `<div class="section-label">【現状診断】</div>
-ACOS 22.2%は許容範囲内ですが、CTR 0.28%が深刻に低く、表示されてもクリックされていません。これはクリエイティブ（メイン画像・タイトル）か価格競争力の問題である可能性が高いです。
-
-<div class="section-label">【<span class="priority-high">優先度：高</span>】今すぐ実行</div>
-• <strong>メイン画像の見直し</strong>：競合上位商品と比較しクリックされやすい画像（白背景・複数アングル）に差し替え<br>
-• <strong>広範マッチを停止</strong>：「bluetooth スピーカー 防水」（CTR 0.28%、ACOS 31%）を一時停止し、完全一致・フレーズに集中<br>
-• <strong>価格見直し</strong>：競合商品の価格帯を確認し、¥200〜¥500の値下げでCTR改善を検証
-
-<div class="section-label">【<span class="priority-med">優先度：中</span>】1〜2週間以内</div>
-• <strong>A/Bテストの実施</strong>：商品タイトルに「防水IPX5」「30時間再生」など具体的スペックを追加しCTR変化を測定<br>
-• <strong>カテゴリターゲティングの入札見直し</strong>：Audiophileカテゴリ（ACOS 24.1%）の入札¥80→¥65に引き下げ
-
-<div class="section-label">【<span class="priority-low">優先度：低</span>】長期施策</div>
-• レビュー件数増加のためVine登録やFollow-upメールの活用でCTR・CVRの両方を底上げ
-
-<div class="section-label">【期待効果】</div>
-クリエイティブ改善でCTR 0.5%以上達成後、ACOS 18-20%・ROAS 5x以上への改善が見込まれます。`,
-
-    // 3: 充電器 BR — 超好調
-    `<div class="section-label">【現状診断】</div>
-ROAS 8.2x・ACOS 12.2%と全キャンペーン中最高パフォーマンスです。スポンサーブランド広告として理想的な数値を達成しており、積極的な拡大投資フェーズに入るべきタイミングです。
-
-<div class="section-label">【<span class="priority-high">優先度：高</span>】今すぐ実行</div>
-• <strong>日予算を¥3,500→¥7,000に倍増</strong>：ROAS 8.2xなら追加予算¥3,500が¥28,700の売上に変換されます<br>
-• <strong>入札額を20%引き上げ</strong>：好調なキーワード全体の入札を引き上げ、検索結果1〜3位のポジションを確保<br>
-• <strong>ビデオ広告フォーマットへ追加展開</strong>：SBビデオ広告を追加し同予算でより高いCTRを狙う
-
-<div class="section-label">【<span class="priority-med">優先度：中</span>】1〜2週間以内</div>
-• <strong>新規キーワードの横展開</strong>：「PD充電器」「GaN充電器」「65W充電器」など関連ロングテールキーワードを新規追加<br>
-• <strong>スポンサープロダクト連携キャンペーンを追加</strong>：SBで流入したユーザーをSPで再捕捉するマルチキャンペーン戦略
-
-<div class="section-label">【<span class="priority-low">優先度：低</span>】長期施策</div>
-• DSP（Amazon広告プラットフォーム）への展開で、購入検討層へのオフサイトリーチを追加
-
-<div class="section-label">【期待効果】</div>
-予算倍増と入札引き上げで月次売上¥500k超を維持しながら、ROAS 7-8xをキープする拡大成長が期待されます。`,
-
-    // 4: 充電ケーブル KW — 停止中
-    `<div class="section-label">【現状診断】</div>
-現在停止中ですが、ACOS 25%・ROAS 4.0xは再開可能な水準です。停止理由（ACOS超過か予算問題か）を確認した上で、条件付きで再開を検討する価値があります。
-
-<div class="section-label">【<span class="priority-high">優先度：高</span>】今すぐ実行</div>
-• <strong>停止理由を確認</strong>：セラーセントラルの「キャンペーン履歴」で停止トリガーを特定<br>
-• <strong>入札額を-20%調整してから再開</strong>：現入札から20%下げた状態でテスト再開し、ACOS 20%以下を目標に設定<br>
-• <strong>日予算を¥2,000に絞って再開</strong>：少ない予算で1〜2週間データを再取得し、採算性を再評価
-
-<div class="section-label">【<span class="priority-med">優先度：中</span>】1〜2週間以内</div>
-• <strong>キーワードを精査して再起動</strong>：過去のパフォーマンスデータから上位10キーワードのみに絞り込んで再開<br>
-• <strong>マッチタイプを完全一致のみに変更</strong>：フレーズ・広範の無駄クリックを排除し精度を上げる
-
-<div class="section-label">【<span class="priority-low">優先度：低</span>】長期施策</div>
-• 商品ページのCVR改善（先週比-22%の原因調査）を優先し、CVRが回復してから本格再開
-
-<div class="section-label">【期待効果】</div>
-段階的再開と入札最適化で4週間後にACOS 20-22%・ROAS 4.5xへの改善が見込まれます。`,
-
-    // 5: USBハブ SD
-    `<div class="section-label">【現状診断】</div>
-ACOS 16.3%・ROAS 6.1xと安定した優良キャンペーンです。スポンサーディスプレイ広告として十分な効果を発揮していますが、日予算¥2,500は同タイプとして低く、拡大余地があります。
-
-<div class="section-label">【<span class="priority-high">優先度：高</span>】今すぐ実行</div>
-• <strong>日予算を¥2,500→¥4,500に増額</strong>：ROAS 6.1xなら追加¥2,000が¥12,200の売上に変換されます<br>
-• <strong>リターゲティング期間を30日→60日に拡大</strong>：ディスプレイ広告のオーディエンス期間を延長し、長期検討層へのリーチを拡大<br>
-• <strong>類似商品ASINへのターゲティング追加</strong>：競合USB Hub商品ページへの直接広告表示を追加
-
-<div class="section-label">【<span class="priority-med">優先度：中</span>】1〜2週間以内</div>
-• <strong>クリエイティブのA/Bテスト</strong>：「7ポート」「4K対応」「USB-C付き」の訴求点別に複数バナーをテスト<br>
-• <strong>購入済みユーザーへのクロスセル設定</strong>：充電器・ケーブル購入者へUSBハブを表示するオーディエンス設定
-
-<div class="section-label">【<span class="priority-low">優先度：低</span>】長期施策</div>
-• PC周辺機器カテゴリ全体へのカテゴリターゲティング追加でリーチ層を拡大
-
-<div class="section-label">【期待効果】</div>
-予算増額とターゲティング拡大でACOS 15-18%を維持しながら月次売上¥350k超への成長が期待されます。`
-  ];
-  return demos[idx] || '<div style="color:var(--text3)">デモデータがありません</div>';
 }
 
 async function analyzeAll() {
