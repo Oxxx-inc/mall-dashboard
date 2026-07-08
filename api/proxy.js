@@ -168,7 +168,7 @@ module.exports = async function handler(req, res) {
       const kwReport = await adsPost(
         '/reporting/reports',
         {
-          name: 'Keyword Performance',
+          name: `Keyword Performance ${startDate} ${endDate}`,
           startDate,
           endDate,
           configuration: {
@@ -198,8 +198,12 @@ module.exports = async function handler(req, res) {
       if (kwReport.status === 200 && kwReport.data.reportId) {
         kwReportId = kwReport.data.reportId;
       } else if (kwReport.status === 425) {
-        const m = JSON.stringify(kwReport.data).match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/);
-        if (m) kwReportId = m[1];
+        const raw = JSON.stringify(kwReport.data);
+        const m = raw.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/g);
+        if (m && m.length > 0) kwReportId = m[m.length - 1]; // 最後のUUIDを取得
+        console.log('[kwReport 425] raw:', raw, 'extracted:', kwReportId);
+      } else {
+        console.log('[kwReport error] status:', kwReport.status, 'data:', JSON.stringify(kwReport.data));
       }
 
       if (!campReportId) {
