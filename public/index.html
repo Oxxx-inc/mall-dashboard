@@ -1659,15 +1659,44 @@ async function loadRealData() {
   document.getElementById('apiStatusText').textContent = '読み込み中...';
 
   try {
-    // キャンペーン取得
+    // ① キャンペーン一覧取得
+    document.getElementById('apiStatusText').textContent = 'キャンペーン取得中...';
     const rawCampaigns = await fetchApi('campaigns');
     const normalized = normalizeCampaigns(rawCampaigns);
     if (normalized && normalized.length > 0) {
       campaigns.length = 0;
       normalized.forEach(c => campaigns.push(c));
     }
+    renderCampaigns();
 
-    // キーワード取得
+    // ② パフォーマンスレポート取得（非同期・30〜60秒かかる）
+    document.getElementById('apiStatusText').textContent = 'レポート生成中（30〜60秒かかります）...';
+    try {
+      const reportRes = await fetchApi('report');
+      const reportData = reportRes.report || reportRes;
+      if (Array.isArray(reportData) && reportData.length > 0) {
+        reportData.forEach(r => {
+          // campaignIdまたはcampaignNameでマッチ
+          const camp = campaigns.find(c =>
+            c.campaignId === r.campaignId || c.name === r.campaignName
+          );
+          if (camp) {
+            camp.spend  = Math.round(r.cost || 0);
+            camp.sales  = Math.round(r.sales30d || r.attributedSales30d || 0);
+            camp.acos   = camp.spend && camp.sales
+              ? Math.round(camp.spend / camp.sales * 1000) / 10 : 0;
+            camp.roas   = camp.spend && camp.sales
+              ? Math.round(camp.sales / camp.spend * 10) / 10 : 0;
+            camp.imp    = r.impressions || 0;
+            camp.clicks = r.clicks || 0;
+          }
+        });
+        renderCampaigns();
+      }
+    } catch(e) { console.warn('[API] レポート取得失敗:', e.message); }
+
+    // ③ キーワード取得
+    document.getElementById('apiStatusText').textContent = 'キーワード取得中...';
     try {
       const rawKeywords = await fetchApi('keywords');
       const normKw = normalizeKeywords(rawKeywords);
@@ -1675,6 +1704,7 @@ async function loadRealData() {
         keywords.length = 0;
         normKw.forEach(k => keywords.push(k));
       }
+      renderKeywords();
     } catch(e) { console.warn('[API] キーワード取得失敗:', e.message); }
 
     // 接続成功
