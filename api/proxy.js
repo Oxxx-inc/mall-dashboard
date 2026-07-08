@@ -138,13 +138,14 @@ module.exports = async function handler(req, res) {
       );
       return res.status(r.status).json(r.data);
 
-    // ① レポートリクエスト（即時返却）
+    // ① レポートリクエスト（即時返却）- キャンペーン＋キーワード両方
     } else if (endpoint === 'report_request') {
       const today     = new Date();
       const endDate   = (req.query.end   || today.toISOString().slice(0, 10));
       const startDate = (req.query.start || new Date(today - 30 * 86400000).toISOString().slice(0, 10));
 
-      const r = await adsPost(
+      // キャンペーンレポート
+      const campReport = await adsPost(
         '/reporting/reports',
         {
           name: 'Campaign Performance',
@@ -163,17 +164,53 @@ module.exports = async function handler(req, res) {
         'application/vnd.createasyncreportrequest.v3+json'
       );
 
-      // 425重複の場合は既存IDを抽出
-      if (r.status === 425) {
-        const m = JSON.stringify(r.data).match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/);
-        if (m) return res.status(200).json({ reportId: m[1], status: 'PENDING' });
-        return res.status(425).json({ error: '重複エラー: ' + JSON.stringify(r.data) });
+      // キーワードレポート
+      const kwReport = await adsPost(
+        '/reporting/reports',
+        {
+          name: 'Keyword Performance',
+          startDate,
+          endDate,
+          configuration: {
+            adProduct:    'SPONSORED_PRODUCTS',
+            groupBy:      ['keyword'],
+            columns:      ['campaignId', 'campaignName', 'keywordId', 'keyword', 'keywordType', 'matchType', 'impressions', 'clicks', 'cost', 'sales30d', 'purchases30d'],
+            reportTypeId: 'spKeywords',
+            timeUnit:     'SUMMARY',
+            format:       'GZIP_JSON',
+          },
+        },
+        'application/vnd.createasyncreportrequest.v3+json',
+        'application/vnd.createasyncreportrequest.v3+json'
+      );
+
+      // キャンペーンレポートID取得
+      let campReportId;
+      if (campReport.status === 200 && campReport.data.reportId) {
+        campReportId = campReport.data.reportId;
+      } else if (campReport.status === 425) {
+        const m = JSON.stringify(campReport.data).match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/);
+        if (m) campReportId = m[1];
       }
 
-      if (r.status !== 200 || !r.data.reportId) {
-        return res.status(r.status).json({ error: 'リクエスト失敗: ' + JSON.stringify(r.data) });
+      // キーワードレポートID取得
+      let kwReportId;
+      if (kwReport.status === 200 && kwReport.data.reportId) {
+        kwReportId = kwReport.data.reportId;
+      } else if (kwReport.status === 425) {
+        const m = JSON.stringify(kwReport.data).match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/);
+        if (m) kwReportId = m[1];
       }
-      return res.status(200).json({ reportId: r.data.reportId, status: r.data.status || 'PENDING' });
+
+      if (!campReportId) {
+        return res.status(campReport.status).json({ error: 'キャンペーンレポート失敗: ' + JSON.stringify(campReport.data) });
+      }
+
+      return res.status(200).json({
+        reportId:   campReportId,
+        kwReportId: kwReportId || null,
+        status:     'PENDING',
+      });
 
     // ② レポートステータス確認 & ダウンロード（即時返却）
     } else if (endpoint === 'report_status') {

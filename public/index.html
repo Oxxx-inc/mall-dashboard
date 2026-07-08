@@ -1300,7 +1300,7 @@ async function reloadWithDateRange(start, end) {
     const res = await fetch(`${API_BASE}?endpoint=report_request&start=${start}&end=${end}`);
     const data = await res.json();
     if (data.reportId) {
-      setTimeout(() => pollReport(data.reportId, 1), 5000);
+      setTimeout(() => pollReport(data.reportId, data.kwReportId || null, 1), 5000);
       apiLoaded = true;
     }
   } catch(e) {
@@ -1782,29 +1782,76 @@ function mergeReport(reportData) {
   updateKpi();
 }
 
-async function pollReport(reportId, attempt) {
-  if (attempt > 24) { // 最大2分
+async function pollReport(reportId, kwReportId, attempt) {
+  if (attempt > 24) {
     console.warn('[API] レポートタイムアウト');
     document.getElementById('apiStatusText').textContent = `接続済み (${campaigns.length}件)`;
     return;
   }
   try {
+    // キャンペーンレポートのステータス確認
     const res = await fetch(`${API_BASE}?endpoint=report_status&id=${reportId}`);
     const data = await res.json();
+
     if (data.status === 'COMPLETED') {
       mergeReport(data.report);
       document.getElementById('apiStatusText').textContent = `接続済み (${campaigns.length}件) ✓`;
+
+      // キーワードレポートも取得
+      if (kwReportId) {
+        pollKwReport(kwReportId, 1);
+      }
     } else if (data.status === 'FAILED') {
       console.warn('[API] レポート失敗:', data.error);
       document.getElementById('apiStatusText').textContent = `接続済み (${campaigns.length}件)`;
     } else {
       document.getElementById('apiStatusText').textContent = `レポート生成中... (${attempt * 5}秒)`;
-      setTimeout(() => pollReport(reportId, attempt + 1), 5000);
+      setTimeout(() => pollReport(reportId, kwReportId, attempt + 1), 5000);
     }
   } catch(e) {
     console.warn('[API] ポーリング失敗:', e.message);
     document.getElementById('apiStatusText').textContent = `接続済み (${campaigns.length}件)`;
   }
+}
+
+async function pollKwReport(kwReportId, attempt) {
+  if (attempt > 24) return;
+  try {
+    const res  = await fetch(`${API_BASE}?endpoint=report_status&id=${kwReportId}`);
+    const data = await res.json();
+
+    if (data.status === 'COMPLETED') {
+      mergeKwReport(data.report);
+      document.getElementById('apiStatusText').textContent = `接続済み ✓ KW取得完了`;
+    } else if (data.status === 'FAILED') {
+      console.warn('[API] KWレポート失敗');
+    } else {
+      setTimeout(() => pollKwReport(kwReportId, attempt + 1), 5000);
+    }
+  } catch(e) {
+    console.warn('[API] KWポーリング失敗:', e.message);
+  }
+}
+
+function mergeKwReport(reportData) {
+  if (!Array.isArray(reportData) || reportData.length === 0) return;
+  reportData.forEach(r => {
+    const kw = keywords.find(k =>
+      k.kw === r.keyword && k.match === (
+        r.matchType === 'EXACT'  ? '完全一致' :
+        r.matchType === 'PHRASE' ? 'フレーズ' : '広範'
+      )
+    );
+    if (kw) {
+      kw.imp    = r.impressions || 0;
+      kw.clicks = r.clicks || 0;
+      kw.ctr    = r.impressions ? Math.round(r.clicks / r.impressions * 10000) / 100 : 0;
+      kw.spend  = Math.round(r.cost || 0);
+      kw.sales  = Math.round(r.sales30d || 0);
+      kw.acos   = kw.spend && kw.sales ? Math.round(kw.spend / kw.sales * 1000) / 10 : 0;
+    }
+  });
+  renderKeywords();
 }
 
 async function loadRealData() {
@@ -1853,7 +1900,7 @@ async function loadRealData() {
     try {
       const reqRes = await fetchApi('report_request');
       if (reqRes.reportId) {
-        setTimeout(() => pollReport(reqRes.reportId, 1), 5000);
+        setTimeout(() => pollReport(reqRes.reportId, reqRes.kwReportId || null, 1), 5000);
       }
     } catch(e) { 
       console.warn('[API] レポートリクエスト失敗:', e.message);
