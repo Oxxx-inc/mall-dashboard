@@ -1836,12 +1836,10 @@ async function pollKwReport(kwReportId, attempt) {
 function mergeKwReport(reportData) {
   if (!Array.isArray(reportData) || reportData.length === 0) return;
   reportData.forEach(r => {
-    const kw = keywords.find(k =>
-      k.kw === r.keyword && k.match === (
-        r.matchType === 'EXACT'  ? '完全一致' :
-        r.matchType === 'PHRASE' ? 'フレーズ' : '広範'
-      )
-    );
+    const kwText = r.keywordText || r.keyword || '';
+    const matchType = r.matchType === 'EXACT'  ? '完全一致' :
+                      r.matchType === 'PHRASE' ? 'フレーズ' : '広範';
+    const kw = keywords.find(k => k.kw === kwText && k.match === matchType);
     if (kw) {
       kw.imp    = r.impressions || 0;
       kw.clicks = r.clicks || 0;

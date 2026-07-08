@@ -173,8 +173,8 @@ module.exports = async function handler(req, res) {
           endDate,
           configuration: {
             adProduct:    'SPONSORED_PRODUCTS',
-            groupBy:      ['keyword'],
-            columns:      ['campaignId', 'campaignName', 'keywordId', 'keyword', 'keywordType', 'matchType', 'impressions', 'clicks', 'cost', 'sales30d', 'purchases30d'],
+            groupBy:      ['adGroup'],
+            columns:      ['keywordId', 'keywordText', 'matchType', 'impressions', 'clicks', 'cost', 'sales30d', 'purchases30d'],
             reportTypeId: 'spKeywords',
             timeUnit:     'SUMMARY',
             format:       'GZIP_JSON',
