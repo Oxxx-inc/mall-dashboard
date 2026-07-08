@@ -115,8 +115,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function fetchCampaignReport() {
   const today     = new Date();
-  const endDate   = today.toISOString().slice(0, 10).replace(/-/g, '');
-  const startDate = new Date(today - 30 * 86400000).toISOString().slice(0, 10).replace(/-/g, '');
+  const endDate   = today.toISOString().slice(0, 10);
+  const startDate = new Date(today - 30 * 86400000).toISOString().slice(0, 10);
 
   // レポートリクエスト
   const reqResult = await adsPost(
