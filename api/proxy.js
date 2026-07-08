@@ -141,8 +141,8 @@ module.exports = async function handler(req, res) {
     // ① レポートリクエスト（即時返却）
     } else if (endpoint === 'report_request') {
       const today     = new Date();
-      const endDate   = today.toISOString().slice(0, 10);
-      const startDate = new Date(today - 30 * 86400000).toISOString().slice(0, 10);
+      const endDate   = (req.query.end   || today.toISOString().slice(0, 10));
+      const startDate = (req.query.start || new Date(today - 30 * 86400000).toISOString().slice(0, 10));
 
       const r = await adsPost(
         '/reporting/reports',

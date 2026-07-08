@@ -138,6 +138,7 @@
   .date-filter {
     display: flex;
     gap: 4px;
+    align-items: center;
   }
   .date-btn {
     padding: 5px 12px;
@@ -156,6 +157,47 @@
     color: #fff;
   }
   .date-btn:hover:not(.active) { border-color: var(--text2); color: var(--text); }
+
+  /* カスタム日付ピッカー */
+  .custom-date-wrap {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 4px 10px;
+    margin-left: 4px;
+  }
+  .custom-date-wrap.open { display: flex; }
+  .date-input {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    outline: none;
+    cursor: pointer;
+    width: 100px;
+  }
+  .date-input::-webkit-calendar-picker-indicator {
+    filter: invert(0.6);
+    cursor: pointer;
+  }
+  .date-sep { color: var(--text3); font-size: 11px; }
+  .date-apply-btn {
+    padding: 3px 10px;
+    border-radius: 3px;
+    background: var(--accent);
+    border: none;
+    color: #fff;
+    font-size: 10px;
+    cursor: pointer;
+    font-family: 'DM Mono', monospace;
+    font-weight: 700;
+    transition: all 0.15s;
+  }
+  .date-apply-btn:hover { opacity: 0.85; }
   .refresh-btn {
     padding: 6px 14px;
     border-radius: 4px;
@@ -720,9 +762,17 @@
   <div class="topbar">
     <div class="topbar-title" id="pageTitle">ダッシュボード</div>
     <div class="date-filter">
+      <button class="date-btn" onclick="setDate(this,'1d')">今日</button>
       <button class="date-btn" onclick="setDate(this,'7d')">7日</button>
       <button class="date-btn active" onclick="setDate(this,'30d')">30日</button>
       <button class="date-btn" onclick="setDate(this,'90d')">90日</button>
+      <button class="date-btn" onclick="toggleCustomDate(this)">カスタム</button>
+      <div class="custom-date-wrap" id="customDateWrap">
+        <input type="date" class="date-input" id="dateFrom">
+        <span class="date-sep">〜</span>
+        <input type="date" class="date-input" id="dateTo">
+        <button class="date-apply-btn" onclick="applyCustomDate()">適用</button>
+      </div>
     </div>
     <button class="refresh-btn" onclick="simulateRefresh()">↻ 更新</button>
   </div>
@@ -1193,9 +1243,71 @@ function showTab(name) {
   if (name === 'ai') { renderAiCards(); }
 }
 
+// ── 日付管理 ──────────────────────────────────────────
+let currentDateRange = { start: null, end: null, days: 30 };
+
+function getDateRange(days) {
+  const end   = new Date();
+  const start = new Date();
+  start.setDate(end.getDate() - (days - 1));
+  return {
+    start: start.toISOString().slice(0, 10),
+    end:   end.toISOString().slice(0, 10),
+  };
+}
+
 function setDate(btn, range) {
-  document.querySelectorAll('.date-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.date-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  document.getElementById('customDateWrap').classList.remove('open');
+
+  const days = range === '1d' ? 1 : range === '7d' ? 7 : range === '90d' ? 90 : 30;
+  const { start, end } = getDateRange(days);
+  currentDateRange = { start, end, days };
+  reloadWithDateRange(start, end);
+}
+
+function toggleCustomDate(btn) {
+  document.querySelectorAll('.date-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const wrap = document.getElementById('customDateWrap');
+  wrap.classList.toggle('open');
+
+  // デフォルト値をセット
+  if (!document.getElementById('dateFrom').value) {
+    const { start, end } = getDateRange(30);
+    document.getElementById('dateFrom').value = start;
+    document.getElementById('dateTo').value   = end;
+  }
+}
+
+function applyCustomDate() {
+  const start = document.getElementById('dateFrom').value;
+  const end   = document.getElementById('dateTo').value;
+  if (!start || !end) { alert('開始日と終了日を入力してください'); return; }
+  if (start > end) { alert('開始日は終了日より前にしてください'); return; }
+  currentDateRange = { start, end, days: null };
+  reloadWithDateRange(start, end);
+}
+
+async function reloadWithDateRange(start, end) {
+  if (!apiLoaded) return;
+  document.getElementById('apiStatusText').textContent = 'レポート取得中...';
+  apiLoaded = false;
+
+  try {
+    // レポートリクエスト（日付付き）
+    const res = await fetch(`${API_BASE}?endpoint=report_request&start=${start}&end=${end}`);
+    const data = await res.json();
+    if (data.reportId) {
+      setTimeout(() => pollReport(data.reportId, 1), 5000);
+      apiLoaded = true;
+    }
+  } catch(e) {
+    console.warn('[API] 日付変更レポート失敗:', e.message);
+    document.getElementById('apiStatusText').textContent = `接続済み (${campaigns.length}件)`;
+    apiLoaded = true;
+  }
 }
 
 function simulateRefresh() {
