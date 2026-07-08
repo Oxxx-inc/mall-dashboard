@@ -1,7 +1,7 @@
 /**
  * Amazon広告API Proxy
  * Vercel Serverless Function（/api/proxy.js）
- * SP API v3対応 + レポートAPI対応版
+ * 2段階レポート方式（Hobby plan対応）
  */
 
 const https = require('https');
@@ -58,16 +58,14 @@ async function getAccessToken() {
 async function adsPost(path, bodyObj, contentType, accept) {
   const token = await getAccessToken();
   const body  = JSON.stringify(bodyObj);
-  const ct    = contentType || 'application/json';
-  const ac    = accept      || 'application/json';
   return httpsRequest({
     hostname: ADS_HOST, path, method: 'POST',
     headers: {
       'Amazon-Advertising-API-ClientId': AMZ_CLIENT_ID,
       'Amazon-Advertising-API-Scope':    AMZ_PROFILE_ID,
       'Authorization':  `Bearer ${token}`,
-      'Content-Type':   ct,
-      'Accept':         ac,
+      'Content-Type':   contentType || 'application/json',
+      'Accept':         accept      || 'application/json',
       'Content-Length': Buffer.byteLength(body),
     },
   }, body);
@@ -111,80 +109,18 @@ function downloadUrl(url) {
   });
 }
 
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-async function fetchCampaignReport() {
-  const today     = new Date();
-  const endDate   = today.toISOString().slice(0, 10);
-  const startDate = new Date(today - 30 * 86400000).toISOString().slice(0, 10);
-
-  // レポートリクエスト
-  const reqResult = await adsPost(
-    '/reporting/reports',
-    {
-      name: 'Campaign Performance',
-      startDate,
-      endDate,
-      configuration: {
-        adProduct:    'SPONSORED_PRODUCTS',
-        groupBy:      ['campaign'],
-        columns:      ['campaignId', 'campaignName', 'impressions', 'clicks', 'cost', 'sales30d', 'purchases30d'],
-        reportTypeId: 'spCampaigns',
-        timeUnit:     'SUMMARY',
-        format:       'GZIP_JSON',
-      },
-    },
-    'application/vnd.createasyncreportrequest.v3+json',
-    'application/vnd.createasyncreportrequest.v3+json'
-  );
-
-  let reportId;
-  if (reqResult.status === 200 && reqResult.data.reportId) {
-    reportId = reqResult.data.reportId;
-  } else if (reqResult.status === 425) {
-    // 重複リクエスト → 既存IDを抽出
-    const m = JSON.stringify(reqResult.data).match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/);
-    if (m) { reportId = m[1]; }
-    else throw new Error("重複レポートIDの抽出失敗: " + JSON.stringify(reqResult.data));
-  } else {
-    throw new Error("レポートリクエスト失敗 " + reqResult.status + ": " + JSON.stringify(reqResult.data));
-  }
-  }
-
-
-  // ポーリング（最大90秒）
-  for (let i = 0; i < 18; i++) {
-    await sleep(5000);
-    const st = await adsGet(`/reporting/reports/${reportId}`);
-    const status = st.data.status;
-    if (status === 'COMPLETED') {
-      const url = st.data.url;
-      if (!url) throw new Error('ダウンロードURLなし');
-      return await downloadUrl(url);
-    }
-    if (status === 'FAILED') throw new Error('レポート失敗: ' + JSON.stringify(st.data));
-  }
-  throw new Error('レポートタイムアウト');
-}
-
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const { endpoint } = req.query;
+  const { endpoint, id } = req.query;
 
   if (endpoint === 'health') return res.status(200).json({ status: 'ok', time: new Date().toISOString() });
 
-  if (endpoint === 'debug') {
-    try {
-      const token = await getAccessToken();
-      return res.status(200).json({ status: 'ok', token_length: token.length, profile_id: AMZ_PROFILE_ID });
-    } catch(e) { return res.status(500).json({ error: e.message }); }
-  }
-
   try {
+    // キャンペーン一覧
     if (endpoint === 'campaigns') {
       const r = await adsPost('/sp/campaigns/list',
         { stateFilter: { include: ['ENABLED', 'PAUSED'] }, maxResults: 100 },
@@ -193,6 +129,7 @@ module.exports = async function handler(req, res) {
       );
       return res.status(r.status).json(r.data);
 
+    // キーワード一覧
     } else if (endpoint === 'keywords') {
       const r = await adsPost('/sp/keywords/list',
         { stateFilter: { include: ['ENABLED', 'PAUSED'] }, maxResults: 200 },
@@ -201,28 +138,69 @@ module.exports = async function handler(req, res) {
       );
       return res.status(r.status).json(r.data);
 
-    } else if (endpoint === 'adgroups') {
-      const r = await adsPost('/sp/adGroups/list',
-        { stateFilter: { include: ['ENABLED', 'PAUSED'] }, maxResults: 100 },
-        'application/vnd.spAdGroup.v3+json',
-        'application/vnd.spAdGroup.v3+json'
-      );
-      return res.status(r.status).json(r.data);
+    // ① レポートリクエスト（即時返却）
+    } else if (endpoint === 'report_request') {
+      const today     = new Date();
+      const endDate   = today.toISOString().slice(0, 10);
+      const startDate = new Date(today - 30 * 86400000).toISOString().slice(0, 10);
 
-    } else if (endpoint === 'targets') {
-      const r = await adsPost('/sp/targets/list',
-        { stateFilter: { include: ['ENABLED', 'PAUSED'] }, maxResults: 200 },
-        'application/vnd.spTargetingClause.v3+json',
-        'application/vnd.spTargetingClause.v3+json'
+      const r = await adsPost(
+        '/reporting/reports',
+        {
+          name: 'Campaign Performance',
+          startDate,
+          endDate,
+          configuration: {
+            adProduct:    'SPONSORED_PRODUCTS',
+            groupBy:      ['campaign'],
+            columns:      ['campaignId', 'campaignName', 'impressions', 'clicks', 'cost', 'sales30d', 'purchases30d'],
+            reportTypeId: 'spCampaigns',
+            timeUnit:     'SUMMARY',
+            format:       'GZIP_JSON',
+          },
+        },
+        'application/vnd.createasyncreportrequest.v3+json',
+        'application/vnd.createasyncreportrequest.v3+json'
       );
-      return res.status(r.status).json(r.data);
 
-    } else if (endpoint === 'report') {
-      const reportData = await fetchCampaignReport();
-      return res.status(200).json({ report: Array.isArray(reportData) ? reportData : [] });
+      // 425重複の場合は既存IDを抽出
+      if (r.status === 425) {
+        const m = JSON.stringify(r.data).match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/);
+        if (m) return res.status(200).json({ reportId: m[1], status: 'PENDING' });
+        return res.status(425).json({ error: '重複エラー: ' + JSON.stringify(r.data) });
+      }
+
+      if (r.status !== 200 || !r.data.reportId) {
+        return res.status(r.status).json({ error: 'リクエスト失敗: ' + JSON.stringify(r.data) });
+      }
+      return res.status(200).json({ reportId: r.data.reportId, status: r.data.status || 'PENDING' });
+
+    // ② レポートステータス確認 & ダウンロード（即時返却）
+    } else if (endpoint === 'report_status') {
+      if (!id) return res.status(400).json({ error: 'idパラメータが必要です' });
+
+      const st = await adsGet(`/reporting/reports/${id}`);
+      const status = st.data.status;
+
+      if (status === 'COMPLETED') {
+        const url = st.data.url;
+        if (!url) return res.status(500).json({ error: 'ダウンロードURLなし' });
+        const data = await downloadUrl(url);
+        return res.status(200).json({ status: 'COMPLETED', report: Array.isArray(data) ? data : [] });
+      }
+
+      if (status === 'FAILED') {
+        return res.status(500).json({ status: 'FAILED', error: JSON.stringify(st.data) });
+      }
+
+      // PENDING or PROCESSING
+      return res.status(200).json({ status: status || 'PENDING' });
 
     } else {
-      return res.status(400).json({ error: `不明なendpoint: ${endpoint}` });
+      return res.status(400).json({
+        error: `不明なendpoint: ${endpoint}`,
+        valid: ['campaigns', 'keywords', 'report_request', 'report_status', 'health'],
+      });
     }
   } catch (e) {
     console.error('[proxy error]', e.message);
