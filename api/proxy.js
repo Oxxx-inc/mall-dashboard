@@ -138,11 +138,19 @@ async function fetchCampaignReport() {
     'application/vnd.createasyncreportrequest.v3+json'
   );
 
-  if (reqResult.status !== 200 || !reqResult.data.reportId) {
-    throw new Error('レポートリクエスト失敗 ' + reqResult.status + ': ' + JSON.stringify(reqResult.data));
+  let reportId;
+  if (reqResult.status === 200 && reqResult.data.reportId) {
+    reportId = reqResult.data.reportId;
+  } else if (reqResult.status === 425) {
+    // 重複リクエスト → 既存IDを抽出
+    const m = JSON.stringify(reqResult.data).match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/);
+    if (m) { reportId = m[1]; }
+    else throw new Error("重複レポートIDの抽出失敗: " + JSON.stringify(reqResult.data));
+  } else {
+    throw new Error("レポートリクエスト失敗 " + reqResult.status + ": " + JSON.stringify(reqResult.data));
+  }
   }
 
-  const reportId = reqResult.data.reportId;
 
   // ポーリング（最大90秒）
   for (let i = 0; i < 18; i++) {
